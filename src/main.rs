@@ -8,21 +8,21 @@ use log::{debug, info};
 #[macro_use]
 extern crate serde_derive;
 
+mod common;
 mod db;
 mod youtube;
 
 fn notmain() -> Result<()> {
-    let chanid = "pentadact";
-    info!("Querying channel {}", &chanid);
-    let yt = crate::youtube::YoutubeQuery::new(chanid.into());
+    let chanid = crate::common::YoutubeID{
+        id: "pentadact".into(),
+    };
+
+    let yt = crate::youtube::YoutubeQuery::new(chanid.clone());
     let videos = yt.videos()?;
 
     let db = crate::db::Database::open()?;
     for v in videos.flatten() {
-        if v.title.contains("Leverage") {
-            return Ok(());
-        }
-        db.insert(&v)?;
+        db.insert(&v, &chanid)?;
         println!("{0}", v.title);
     }
 

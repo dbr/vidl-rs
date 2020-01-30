@@ -2,6 +2,9 @@ use anyhow::{Context, Result};
 use rusqlite::{params, Connection};
 use time::Timespec;
 
+use crate::common::YoutubeID;
+use crate::youtube::VideoInfo;
+
 #[derive(Debug)]
 struct Person {
     id: i32,
@@ -46,18 +49,37 @@ impl Database {
         Ok(Database { conn })
     }
 
-    pub fn insert(&self, video: &crate::youtube::VideoInfo) -> Result<()> {
+    pub fn insert(&self, video: &VideoInfo, chan: &YoutubeID) -> Result<()> {
+        let chan_sqlid: i64 = self
+            .conn
+            .query_row(
+                "SELECT id FROM channel WHERE name=?1 AND service = ?2",
+                params![chan.id, chan.service_str()],
+                |row| row.get(0),
+            )
+            .or_else(|_err| {
+                // FIXME: This will create new entry if above query fails for any reason, not just doesn't exist
+                self.conn.execute(
+                    "INSERT INTO channel (name, service) VALUES (?1, ?2)",
+                    params![chan.id, chan.service_str()],
+                )?;
+                let x: Result<i64> = Ok(self.conn.last_insert_rowid());
+                x
+            })
+            .context("Failed to get (or create) channel ID")?;
+
         self.conn.execute(
             "INSERT INTO video (channel, id, title, description, thumbnail)
                 VALUES (?1, ?2, ?3, ?4, ?5)",
             params![
-                "youtube",
+                chan_sqlid,
                 video.id,
                 video.title,
                 video.description,
                 video.thumbnail_url,
             ],
         )?;
+
         Ok(())
     }
 }

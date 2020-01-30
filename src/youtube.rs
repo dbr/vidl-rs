@@ -1,6 +1,8 @@
 use anyhow::{Context, Result};
 use log::{debug, info, trace};
 
+use crate::common::YoutubeID;
+
 static API_KEY: &str = "AIzaSyBBUxzImakMKKW3B6Qu47lR9xMpb6DNqQE"; // ytdl public API browser key (for Youtube API v3)
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -90,7 +92,7 @@ struct YTPlaylistItem {
 /// Object to query data about given channel
 #[derive(Debug)]
 pub struct YoutubeQuery {
-    chan_id: String,
+    chan_id: YoutubeID,
 }
 
 #[derive(Debug)]
@@ -102,7 +104,7 @@ pub struct VideoInfo {
 }
 
 impl<'a> YoutubeQuery {
-    pub fn new(chan_id: String) -> YoutubeQuery {
+    pub fn new(chan_id: YoutubeID) -> YoutubeQuery {
         YoutubeQuery { chan_id }
     }
 
@@ -114,7 +116,7 @@ impl<'a> YoutubeQuery {
         let url = format!(
             "https://www.googleapis.com/youtube/v3/channels?key={apikey}&forUsername={chanid}&part=snippet%2CcontentDetails",
             apikey=API_KEY,
-            chanid=self.chan_id);
+            chanid=self.chan_id.id);
         debug!("Retriving URL {}", &url);
         let resp = attohttpc::get(&url).send()?;
         let text = resp.text()?;
