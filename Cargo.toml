@@ -1,0 +1,16 @@
+[package]
+name = "ytdl"
+version = "0.1.0"
+authors = ["dbr <dbr.onix@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+attohttpc = "*"
+serde = "*"
+serde_derive = "*"
+serde_json = "1.0"
+log = "*"
+env_logger = "*"
+anyhow = "1"
+rusqlite = "0.21"
+time = "*"
