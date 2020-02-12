@@ -1,16 +1,21 @@
 [package]
-name = "ytdl"
-version = "0.1.0"
 authors = ["dbr <dbr.onix@gmail.com>"]
 edition = "2018"
-
+name = "ytdl"
+version = "0.1.0"
 [dependencies]
+anyhow = "1"
 attohttpc = "*"
+chrono = "0.4"
+clap = "*"
+env_logger = "*"
+fern = "*"
+log = "*"
 serde = "*"
 serde_derive = "*"
 serde_json = "1.0"
-log = "*"
-env_logger = "*"
-anyhow = "1"
-rusqlite = "0.21"
-time = "*"
+threadpool = "*"
+
+[dependencies.rusqlite]
+features = ["chrono"]
+version = "0.21"

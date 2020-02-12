@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use log::{debug, info, trace};
+use log::{debug, trace};
 
 use crate::common::YoutubeID;
 
@@ -101,6 +101,7 @@ pub struct VideoInfo {
     pub title: String,
     pub description: String,
     pub thumbnail_url: String,
+    pub published_at: chrono::DateTime<chrono::Utc>,
 }
 
 impl<'a> YoutubeQuery {
@@ -159,6 +160,8 @@ impl<'a> YoutubeQuery {
                     title: d.snippet.title.clone(),
                     description: d.snippet.description.clone(),
                     thumbnail_url: d.snippet.thumbnails.default.url.clone(),
+                    // published_at: time::strptime(&d.snippet.published_at, "Y-m-d\\TH:i:s.uP").unwrap_or(time::now())
+                    published_at: d.snippet.published_at.parse::<chrono::DateTime<chrono::Utc>>().unwrap(),
                 })
                 .collect();
             Some(data)
@@ -178,9 +181,9 @@ impl<'a> YoutubeQuery {
         };
 
         let url = format!("https://www.googleapis.com/youtube/v3/playlistItems?key={apikey}&part=snippet&maxResults={num}&playlistId={playlist}{page}",
-            apikey = API_KEY,
+            apikey=API_KEY,
             num=50,
-            playlist = playlist_id,
+            playlist=playlist_id,
             page=pt
         );
         debug!("Querying {:?}", &url);
