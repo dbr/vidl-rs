@@ -43,18 +43,22 @@ fn update() -> Result<()> {
         }
     }
 
-
     Ok(())
 }
 
-fn add() -> Result<()> {
+fn add(chanid: &str, service_str: &str) -> Result<()> {
     let db = crate::db::Database::open()?;
-    let chan = db::Channel::get_or_create(&db, "pentadact", db::Service::Youtube)?;
+    let service = crate::db::Service::from_str(service_str)?;
+    info!("Adding channel {} from service {:?}", &chanid, &service);
+    let chan = db::Channel::get_or_create(&db, chanid, service)?;
     Ok(())
 }
 
 fn main() -> Result<()> {
-    let sc_add = SubCommand::with_name("add").about("Add channel");
+    let sc_add = SubCommand::with_name("add")
+        .about("Add channel")
+        .arg(Arg::with_name("chanid"))
+        .arg(Arg::with_name("service"));
     let sc_update = SubCommand::with_name("update").about("Updates all added channel info");
 
     let app = App::new("ytdl")
@@ -73,7 +77,7 @@ fn main() -> Result<()> {
     let verbosity = app_m.occurrences_of("verbose");
     let internal_level = match verbosity {
         0 => log::LevelFilter::Error,
-        1 => log::LevelFilter::Info, // -v
+        1 => log::LevelFilter::Info,  // -v
         2 => log::LevelFilter::Debug, // -vv
         _ => log::LevelFilter::Trace, // -vvv
     };
@@ -102,7 +106,10 @@ fn main() -> Result<()> {
         .apply()?;
 
     match app_m.subcommand() {
-        ("add", Some(_sub_m)) => add()?,
+        ("add", Some(sub_m)) => add(
+            sub_m.value_of("chanid").unwrap(),
+            sub_m.value_of("service").unwrap(),
+        )?,
         ("update", Some(_sub_m)) => update()?,
         _ => {
             eprintln!("Error: Unknown subcommand");
