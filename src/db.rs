@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection};
 
-use crate::common::YoutubeID;
 use crate::youtube::VideoInfo;
 
 pub struct Database {
@@ -10,8 +9,7 @@ pub struct Database {
 
 impl Database {
     pub fn open() -> Result<Database> {
-        let conn = Connection::open("/tmp/ytdl3.sqlite3")?;
-        // let conn = Connection::open_in_memory()?; // TODO: File
+        let conn = Connection::open("/tmp/ytdl3.sqlite3")?; // FIXME: Better location
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS channel (

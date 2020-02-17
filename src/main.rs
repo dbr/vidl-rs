@@ -50,31 +50,12 @@ fn add(chanid: &str, service_str: &str) -> Result<()> {
     let db = crate::db::Database::open()?;
     let service = crate::db::Service::from_str(service_str)?;
     info!("Adding channel {} from service {:?}", &chanid, &service);
-    let chan = db::Channel::get_or_create(&db, chanid, service)?;
+    db::Channel::get_or_create(&db, chanid, service)?;
     Ok(())
 }
 
-fn main() -> Result<()> {
-    let sc_add = SubCommand::with_name("add")
-        .about("Add channel")
-        .arg(Arg::with_name("chanid"))
-        .arg(Arg::with_name("service"));
-    let sc_update = SubCommand::with_name("update").about("Updates all added channel info");
-
-    let app = App::new("ytdl")
-        .subcommand(sc_add)
-        .subcommand(sc_update)
-        .arg(
-            Arg::with_name("verbose")
-                .short("v")
-                .multiple(true)
-                .takes_value(false),
-        );
-
-    let app_m = app.get_matches();
-
-    // Logging levels
-    let verbosity = app_m.occurrences_of("verbose");
+fn config_logging(verbosity: u64) -> Result<()> {
+    // Level for this application
     let internal_level = match verbosity {
         0 => log::LevelFilter::Error,
         1 => log::LevelFilter::Info,  // -v
@@ -82,7 +63,7 @@ fn main() -> Result<()> {
         _ => log::LevelFilter::Trace, // -vvv
     };
 
-    // Enable logging for 3rd party library at -vvv
+    // Show log output for 3rd party library at -vvv
     let thirdparty_level = match verbosity {
         0 => log::LevelFilter::Error,
         1 => log::LevelFilter::Error, // -v
@@ -104,6 +85,32 @@ fn main() -> Result<()> {
         .level_for("ytdl", internal_level)
         .chain(std::io::stdout())
         .apply()?;
+
+    Ok(())
+}
+
+fn main() -> Result<()> {
+    let sc_add = SubCommand::with_name("add")
+        .about("Add channel")
+        .arg(Arg::with_name("chanid").required(true))
+        .arg(Arg::with_name("service").required(true));
+    let sc_update = SubCommand::with_name("update").about("Updates all added channel info");
+
+    let app = App::new("ytdl")
+        .subcommand(sc_add)
+        .subcommand(sc_update)
+        .arg(
+            Arg::with_name("verbose")
+                .short("v")
+                .multiple(true)
+                .takes_value(false),
+        );
+
+    let app_m = app.get_matches();
+
+    // Logging levels
+    let verbosity = app_m.occurrences_of("verbose");
+    config_logging(verbosity)?;
 
     match app_m.subcommand() {
         ("add", Some(sub_m)) => add(
