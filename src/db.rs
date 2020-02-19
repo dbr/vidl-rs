@@ -3,11 +3,13 @@ use rusqlite::{params, Connection};
 
 use crate::youtube::VideoInfo;
 
+/// Wraps connection to a database
 pub struct Database {
     pub conn: Connection,
 }
 
 impl Database {
+    /// Opens connection to database, creating tables as necessary
     pub fn open() -> Result<Database> {
         let conn = Connection::open("/tmp/ytdl3.sqlite3")?; // FIXME: Better location
 
@@ -40,6 +42,7 @@ impl Database {
     }
 }
 
+/// Supported services
 #[derive(Debug, Clone, Copy)]
 pub enum Service {
     Youtube,
@@ -62,16 +65,22 @@ impl Service {
     }
 }
 
+/// Channel which contains a bunch of videos
 #[derive(Debug)]
 pub struct Channel {
+    /// SQL ID number
     pub id: i64,
+    /// ID of the video with the given service
     pub chanid: String,
+    /// Which service the channel is on
     pub service: Service,
 }
 
 impl Channel {
+    /// Get Channel object for given channel, creating it in database if not already present
     pub fn get_or_create(db: &Database, chanid: &str, service: Service) -> Result<Channel> {
-        let chan_sqlid: i64 = db.conn
+        let chan_sqlid: i64 = db
+            .conn
             .query_row(
                 "SELECT id FROM channel WHERE name=?1 AND service = ?2",
                 params![chanid, service.as_str()],
@@ -88,9 +97,14 @@ impl Channel {
             })
             .context("Failed to get (or create) channel ID")?;
 
-            Ok(Channel{id: chan_sqlid, chanid: chanid.into(), service: service})
+        Ok(Channel {
+            id: chan_sqlid,
+            chanid: chanid.into(),
+            service: service,
+        })
     }
 
+    /// Add supplied video to database
     pub fn add_video(&self, db: &Database, video: &VideoInfo) -> Result<()> {
         db.conn.execute(
             "INSERT INTO video (channel, id, title, description, thumbnail, published_at)
@@ -108,31 +122,35 @@ impl Channel {
         Ok(())
     }
 
+    /// Return the most recently published video
     pub fn latest_video(&self, db: &Database) -> Result<Option<VideoInfo>> {
-        let v: Result<VideoInfo, rusqlite::Error> = db.conn
-            .query_row(
-                "SELECT id, title, description, thumbnail, published_at FROM video
+        let v: Result<VideoInfo, rusqlite::Error> = db.conn.query_row(
+            "SELECT id, title, description, thumbnail, published_at FROM video
                 WHERE channel=?1
                 ORDER BY published_at DESC
                 LIMIT 1",
-                params![self.id],
-                |row| Ok(VideoInfo{
+            params![self.id],
+            |row| {
+                Ok(VideoInfo {
                     id: row.get(0)?,
                     title: row.get(1)?,
                     description: row.get(2)?,
                     thumbnail_url: row.get(3)?,
                     published_at: row.get(4)?,
                 })
-            );
+            },
+        );
 
-            match v {
-                // Success
-                Ok(video) => Ok(Some(video)),
-                // No results
-                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-                // Propagate other errors
-                Err(e) => Err(e.into()),
-            }
+        match v {
+            // Success
+            Ok(video) => Ok(Some(video)),
+            // No results
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            // Propagate other errors
+            Err(e) => Err(e.into()),
+        }
+    }
+}
     }
 }
 
