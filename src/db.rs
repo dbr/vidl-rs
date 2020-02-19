@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use rusqlite::types::FromSql;
 use rusqlite::{params, Connection};
 
 use crate::youtube::VideoInfo;
@@ -62,6 +63,15 @@ impl Service {
             "vimeo" => Ok(Service::Vimeo),
             _ => Err(anyhow::anyhow!("Unknown service string {:?}", name)),
         }
+    }
+}
+
+/// Converison from SQL text to `Service` instance
+impl FromSql for Service {
+    fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
+        let sv: &str = value.as_str()?;
+        let service = Service::from_str(sv).unwrap();
+        Ok(service)
     }
 }
 
@@ -151,17 +161,15 @@ impl Channel {
         }
     }
 }
-    }
-}
 
+/// All channels present in database
 pub fn list_channels(db: &Database) -> Result<Vec<Channel>> {
     let mut stmt = db.conn.prepare("SELECT id, name, service FROM channel")?;
     let chaniter = stmt.query_map(params![], |row| {
-        let service_str: String = row.get(2).unwrap();
         Ok(Channel {
-            id: row.get(0).unwrap(),
-            chanid: row.get(1).unwrap(),
-            service: Service::from_str(&service_str).unwrap(),
+            id: row.get(0)?,
+            chanid: row.get(1)?,
+            service: row.get(2)?,
         })
     })?;
     let mut ret = vec![];
