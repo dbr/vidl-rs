@@ -118,7 +118,7 @@ impl<'a> YoutubeQuery {
             "https://www.googleapis.com/youtube/v3/channels?key={apikey}&forUsername={chanid}&part=snippet%2CcontentDetails",
             apikey=API_KEY,
             chanid=self.chan_id.id);
-        debug!("Retriving URL {}", &url);
+        debug!("Retrieving URL {}", &url);
         let resp = attohttpc::get(&url).send()?;
         let text = resp.text()?;
         trace!("Raw response: {}", &text);
@@ -161,7 +161,11 @@ impl<'a> YoutubeQuery {
                     description: d.snippet.description.clone(),
                     thumbnail_url: d.snippet.thumbnails.default.url.clone(),
                     // published_at: time::strptime(&d.snippet.published_at, "Y-m-d\\TH:i:s.uP").unwrap_or(time::now())
-                    published_at: d.snippet.published_at.parse::<chrono::DateTime<chrono::Utc>>().unwrap(),
+                    published_at: d
+                        .snippet
+                        .published_at
+                        .parse::<chrono::DateTime<chrono::Utc>>()
+                        .unwrap(),
                 })
                 .collect();
             Some(data)

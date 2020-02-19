@@ -3,7 +3,7 @@ extern crate serde;
 extern crate serde_json;
 
 use anyhow::Result;
-use log::{debug, info};
+use log::{debug, info, warn};
 
 #[macro_use]
 extern crate serde_derive;
@@ -18,6 +18,9 @@ fn update() -> Result<()> {
     let db = crate::db::Database::open()?;
 
     let channels = crate::db::list_channels(&db)?;
+    if channels.len() == 0 {
+        warn!("No channels yet added");
+    }
     for chan in channels {
         info!("Updating channel: {:?}", &chan);
 
@@ -57,7 +60,7 @@ fn add(chanid: &str, service_str: &str) -> Result<()> {
 fn config_logging(verbosity: u64) -> Result<()> {
     // Level for this application
     let internal_level = match verbosity {
-        0 => log::LevelFilter::Error,
+        0 => log::LevelFilter::Warn,
         1 => log::LevelFilter::Info,  // -v
         2 => log::LevelFilter::Debug, // -vv
         _ => log::LevelFilter::Trace, // -vvv
@@ -65,9 +68,9 @@ fn config_logging(verbosity: u64) -> Result<()> {
 
     // Show log output for 3rd party library at -vvv
     let thirdparty_level = match verbosity {
-        0 => log::LevelFilter::Error,
-        1 => log::LevelFilter::Error, // -v
-        2 => log::LevelFilter::Error, // -vv
+        0 => log::LevelFilter::Warn,
+        1 => log::LevelFilter::Warn,  // -v
+        2 => log::LevelFilter::Warn,  // -vv
         _ => log::LevelFilter::Debug, // -vvv
     };
 
