@@ -2,7 +2,7 @@ extern crate env_logger;
 extern crate serde;
 extern crate serde_json;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use log::{debug, info, warn};
 
 #[macro_use]
@@ -24,7 +24,7 @@ fn update() -> Result<()> {
     for chan in channels {
         info!("Updating channel: {:?}", &chan);
 
-        assert_eq!(chan.service.as_str(), "youtube");
+        assert_eq!(chan.service.as_str(), "youtube"); // FIXME
         let chanid = crate::common::YoutubeID {
             id: chan.chanid.clone(),
         };
@@ -49,6 +49,7 @@ fn update() -> Result<()> {
     Ok(())
 }
 
+/// Add channel
 fn add(chanid: &str, service_str: &str) -> Result<()> {
     let db = crate::db::Database::open()?;
     let service = crate::db::Service::from_str(service_str)?;
@@ -96,7 +97,13 @@ fn main() -> Result<()> {
     let sc_add = SubCommand::with_name("add")
         .about("Add channel")
         .arg(Arg::with_name("chanid").required(true))
-        .arg(Arg::with_name("service").required(true));
+        .arg(
+            Arg::with_name("service")
+                .required(true)
+                .default_value("youtube")
+                .possible_values(&["youtube", "vimeo"])
+                .value_name("youtube|vimeo"),
+        );
     let sc_update = SubCommand::with_name("update").about("Updates all added channel info");
 
     let app = App::new("ytdl")
