@@ -15,6 +15,7 @@ serde = "*"
 serde_derive = "*"
 serde_json = "1.0"
 threadpool = "*"
+indicatif = "0.14"
 
 [dependencies.rusqlite]
 features = ["chrono"]
