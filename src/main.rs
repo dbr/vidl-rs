@@ -10,6 +10,8 @@ extern crate serde_derive;
 
 use clap::{App, Arg, SubCommand};
 
+use indicatif::ProgressIterator;
+
 mod common;
 mod db;
 mod youtube;
@@ -21,7 +23,7 @@ fn update() -> Result<()> {
     if channels.len() == 0 {
         warn!("No channels yet added");
     }
-    for chan in channels {
+    for chan in channels.iter().progress() {
         info!("Updating channel: {:?}", &chan);
 
         assert_eq!(chan.service.as_str(), "youtube"); // FIXME
