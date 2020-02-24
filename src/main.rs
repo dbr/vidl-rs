@@ -2,7 +2,7 @@ extern crate env_logger;
 extern crate serde;
 extern crate serde_json;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use log::{debug, info, warn};
 
 #[macro_use]
@@ -31,7 +31,7 @@ fn update() -> Result<()> {
             id: chan.chanid.clone(),
         };
 
-        let yt = crate::youtube::YoutubeQuery::new(chanid.clone());
+        let yt = crate::youtube::YoutubeQuery::new(chanid);
         let videos = yt.videos()?;
 
         let newest_video = chan.latest_video(&db)?;
@@ -55,7 +55,7 @@ fn update() -> Result<()> {
 fn add(chanid: &str, service_str: &str) -> Result<()> {
     let db = crate::db::Database::open()?;
     let service = crate::db::Service::from_str(service_str)?;
-    info!("Adding channel {} from service {:?}", &chanid, &service);
+    info!("Adding channel {} on service {:?}", &chanid, &service);
     db::Channel::get_or_create(&db, chanid, service)?;
     Ok(())
 }

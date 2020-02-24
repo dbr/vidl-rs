@@ -4,7 +4,7 @@ pub struct YoutubeID {
 }
 
 impl YoutubeID {
-    pub fn service_str(&self) -> &str{
+    pub fn service_str(&self) -> &str {
         "youtube"
     }
 }
