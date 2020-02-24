@@ -160,6 +160,28 @@ impl Channel {
             Err(e) => Err(e.into()),
         }
     }
+
+    pub fn all_videos(&self, db: &Database) -> Result<Vec<VideoInfo>> {
+        let mut stmt = db.conn.prepare(
+            "SELECT id, title, description, thumbnail, published_at FROM video
+            WHERE channel=?1
+            ORDER BY published_at DESC",
+        )?;
+        let chaniter = stmt.query_map(params![self.id], |row| {
+            Ok(VideoInfo {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                description: row.get(2)?,
+                thumbnail_url: row.get(3)?,
+                published_at: row.get(4)?,
+            })
+        })?;
+        let mut ret = vec![];
+        for r in chaniter {
+            ret.push(r?);
+        }
+        Ok(ret)
+    }
 }
 
 /// All channels present in database

@@ -60,6 +60,32 @@ fn add(chanid: &str, service_str: &str) -> Result<()> {
     Ok(())
 }
 
+/// List videos
+fn list(chan_num: Option<&str>) -> Result<()> {
+    let db = crate::db::Database::open()?;
+
+    if let Some(chan_num) = chan_num {
+        // List specific channel
+        let channels = crate::db::list_channels(&db)?;
+        for c in channels {
+            if &format!("{}", c.id) == chan_num {
+                for v in c.all_videos(&db)? {
+                    println!(
+                        "Title: {}\nPublished: {}\nDescription: {}\n----",
+                        v.title, v.published_at, v.description
+                    );
+                }
+            }
+        }
+    } else {
+        let channels = crate::db::list_channels(&db)?;
+        for c in channels {
+            println!("{} - {} (service: {})", c.id, c.chanid, c.service.as_str());
+        }
+    }
+    Ok(())
+}
+
 fn config_logging(verbosity: u64) -> Result<()> {
     // Level for this application
     let internal_level = match verbosity {
@@ -108,9 +134,14 @@ fn main() -> Result<()> {
         );
     let sc_update = SubCommand::with_name("update").about("Updates all added channel info");
 
+    let sc_list = SubCommand::with_name("list")
+        .about("list channels/videos")
+        .arg(Arg::with_name("id"));
+
     let app = App::new("ytdl")
         .subcommand(sc_add)
         .subcommand(sc_update)
+        .subcommand(sc_list)
         .arg(
             Arg::with_name("verbose")
                 .short("v")
@@ -130,6 +161,7 @@ fn main() -> Result<()> {
             sub_m.value_of("service").unwrap(),
         )?,
         ("update", Some(_sub_m)) => update()?,
+        ("list", Some(sub_m)) => list(sub_m.value_of("id"))?,
         _ => {
             eprintln!("Error: Unknown subcommand");
         }
