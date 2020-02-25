@@ -163,7 +163,8 @@ fn main() -> Result<()> {
             Arg::with_name("verbose")
                 .short("v")
                 .multiple(true)
-                .takes_value(false),
+                .takes_value(false)
+                .global(true),
         );
 
     let app_m = app.get_matches();
