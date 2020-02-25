@@ -10,20 +10,22 @@ extern crate serde_derive;
 
 use clap::{App, Arg, SubCommand};
 
-use indicatif::ProgressIterator;
-
 mod common;
+mod config;
 mod db;
 mod youtube;
 
 fn update() -> Result<()> {
-    let db = crate::db::Database::open()?;
+    // Load config
+    debug!("Loading config");
+    let cfg = crate::config::Config::load();
+    let db = crate::db::Database::open(&cfg)?;
 
     let channels = crate::db::list_channels(&db)?;
     if channels.len() == 0 {
         warn!("No channels yet added");
     }
-    for chan in channels.iter().progress() {
+    for chan in channels.iter() {
         info!("Updating channel: {:?}", &chan);
 
         assert_eq!(chan.service.as_str(), "youtube"); // FIXME
@@ -58,7 +60,8 @@ fn add(chanid: &str, service_str: &str) -> Result<()> {
 
     let meta = yt.get_metadata()?;
 
-    let db = crate::db::Database::open()?;
+    let cfg = crate::config::Config::load();
+    let db = crate::db::Database::open(&cfg)?;
     let service = crate::db::Service::from_str(service_str)?;
     info!("Adding channel {} on service {:?}", &chanid, &service);
     db::Channel::create(&db, chanid, service, &meta.title, &meta.thumbnail)?;
@@ -67,7 +70,8 @@ fn add(chanid: &str, service_str: &str) -> Result<()> {
 
 /// List videos
 fn list(chan_num: Option<&str>) -> Result<()> {
-    let db = crate::db::Database::open()?;
+    let cfg = crate::config::Config::load();
+    let db = crate::db::Database::open(&cfg)?;
 
     if let Some(chan_num) = chan_num {
         // List specific channel

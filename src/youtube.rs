@@ -222,7 +222,7 @@ impl<'a> YoutubeQuery {
             playlist=playlist_id,
             page=pt
         );
-        debug!("Querying {:?}", &url);
+        debug!("Retrieving URL {:?}", &url);
 
         let resp = attohttpc::get(&url).send()?;
         let text = resp.text()?;

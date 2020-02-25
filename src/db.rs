@@ -1,7 +1,9 @@
 use anyhow::{Context, Result};
+use log::debug;
 use rusqlite::types::FromSql;
 use rusqlite::{params, Connection};
 
+use crate::config::Config;
 use crate::youtube::VideoInfo;
 
 /// Wraps connection to a database
@@ -41,8 +43,14 @@ impl Database {
         Ok(())
     }
     /// Opens connection to database, creating tables as necessary
-    pub fn open() -> Result<Database> {
-        let conn = Connection::open("/tmp/ytdl3.sqlite3")?; // FIXME: Better location
+    pub fn open(cfg: &Config) -> Result<Database> {
+        let path = cfg.db_filepath();
+        if let Some(p) = path.parent() {
+            debug!("Creating {:?}", p);
+            std::fs::create_dir_all(p)?
+        };
+        debug!("Loading DB from {:?}", path);
+        let conn = Connection::open(path)?;
         Database::create_tables(&conn)?;
         Ok(Database { conn })
     }
@@ -249,6 +257,7 @@ pub fn list_channels(db: &Database) -> Result<Vec<Channel>> {
     Ok(ret)
 }
 
+#[test]
 mod tests {
     use super::*;
 
