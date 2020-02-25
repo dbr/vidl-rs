@@ -3,6 +3,7 @@ use log::debug;
 use rusqlite::types::FromSql;
 use rusqlite::{params, Connection};
 
+use crate::common::{ChannelID, Service};
 use crate::config::Config;
 use crate::youtube::VideoInfo;
 
@@ -63,29 +64,6 @@ impl Database {
     }
 }
 
-/// Supported services
-#[derive(Debug, Clone, Copy)]
-pub enum Service {
-    Youtube,
-    Vimeo,
-}
-
-impl Service {
-    pub fn as_str(&self) -> &str {
-        match self {
-            Service::Youtube => "youtube",
-            Service::Vimeo => "vimeo",
-        }
-    }
-    pub fn from_str(name: &str) -> Result<Self> {
-        match name {
-            "youtube" => Ok(Service::Youtube),
-            "vimeo" => Ok(Service::Vimeo),
-            _ => Err(anyhow::anyhow!("Unknown service string {:?}", name)),
-        }
-    }
-}
-
 /// Converison from SQL text to `Service` instance
 impl FromSql for Service {
     fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
@@ -113,11 +91,11 @@ pub struct Channel {
 
 impl Channel {
     /// Get Channel object for given channel, returning error it it does not exist
-    pub fn get(db: &Database, chanid: &str, service: Service) -> Result<Channel> {
+    pub fn get(db: &Database, cid: &ChannelID) -> Result<Channel> {
         let chan = db.conn
             .query_row(
                 "SELECT id, chanid, service, title, thumbnail FROM channel WHERE chanid=?1 AND service = ?2",
-                params![chanid, service.as_str()],
+                params![cid.id_str(), cid.service().as_str()],
                 |row| {
                     Ok(Channel {
                         id: row.get(0)?,
@@ -136,14 +114,13 @@ impl Channel {
     /// Create channel in database
     pub fn create(
         db: &Database,
-        chanid: &str,
-        service: Service,
+        cid: &ChannelID,
         channel_title: &str,
         thumbnail_url: &str,
     ) -> Result<Channel> {
         let check_existing = db.conn.query_row(
             "SELECT id FROM channel WHERE chanid=?1 AND service=?2",
-            params![chanid, service.as_str()],
+            params![cid.id_str(), cid.service().as_str()],
             |_| Ok(()),
         );
         match check_existing {
@@ -159,11 +136,16 @@ impl Channel {
 
         db.conn.execute(
             "INSERT INTO channel (chanid, service, title, thumbnail) VALUES (?1, ?2, ?3, ?4)",
-            params![chanid, service.as_str(), channel_title, thumbnail_url],
+            params![
+                cid.id_str(),
+                cid.service().as_str(),
+                channel_title,
+                thumbnail_url,
+            ],
         )?;
 
         // Return newly created channel
-        Channel::get(&db, &chanid, service)
+        Channel::get(&db, cid)
     }
 
     /// Add supplied video to database

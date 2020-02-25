@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use log::{debug, trace};
 
-use crate::common::YoutubeID;
+use crate::common::{Service, YoutubeID};
 
 static API_KEY: &str = "AIzaSyBBUxzImakMKKW3B6Qu47lR9xMpb6DNqQE"; // ytdl public API browser key (for Youtube API v3)
 
@@ -107,29 +107,35 @@ pub struct VideoInfo {
     pub published_at: chrono::DateTime<chrono::Utc>,
 }
 
-/// Object to query data about given channel
-#[derive(Debug)]
-pub struct YoutubeQuery {
-    chan_id: YoutubeID,
+/// Helper to parse a `contentDetails` response from Youtube API
+fn parse_content_details(url: &str) -> Result<YTChannelListResponse> {
+    debug!("Retrieving URL {}", url);
+    let resp = attohttpc::get(url).send()?;
+    let text = resp.text()?;
+    trace!("Raw response: {}", &text);
+    let d: YTChannelListResponse =
+        serde_json::from_str(&text).context("Failed to parse response")?;
+    trace!("Raw deserialisation: {:?}", &d);
+    Ok(d)
 }
 
-impl<'a> YoutubeQuery {
-    pub fn new(chan_id: YoutubeID) -> YoutubeQuery {
+/// Object to query data about given channel
+#[derive(Debug)]
+pub struct YoutubeQuery<'a> {
+    chan_id: &'a YoutubeID,
+}
+
+impl<'a> YoutubeQuery<'a> {
+    pub fn new(chan_id: &YoutubeID) -> YoutubeQuery {
         YoutubeQuery { chan_id }
     }
 
     pub fn get_metadata(&self) -> Result<ChannelMetadata> {
         let url = format!(
-            "https://www.googleapis.com/youtube/v3/channels?key={apikey}&forUsername={chanid}&part=snippet%2CcontentDetails",
+            "https://www.googleapis.com/youtube/v3/channels?key={apikey}&id={chanid}&part=snippet%2CcontentDetails",
             apikey=API_KEY,
             chanid=self.chan_id.id);
-        debug!("Retrieving URL {}", &url);
-        let resp = attohttpc::get(&url).send()?;
-        let text = resp.text()?;
-        trace!("Raw response: {}", &text);
-        let d: YTChannelListResponse =
-            serde_json::from_str(&text).context("Failed to parse response")?;
-        trace!("Raw deserialisation: {:?}", &d);
+        let d = parse_content_details(&url)?;
 
         let chan = d.items.first().clone().context("Missing channel info")?;
         let cs = &chan.snippet;
@@ -147,16 +153,10 @@ impl<'a> YoutubeQuery {
         // Or username:
         // https://www.googleapis.com/youtube/v3/channels?key={apikey}&forUsername={chanid}&part=contentDetails
         let url = format!(
-            "https://www.googleapis.com/youtube/v3/channels?key={apikey}&forUsername={chanid}&part=snippet%2CcontentDetails",
+            "https://www.googleapis.com/youtube/v3/channels?key={apikey}&id={chanid}&part=snippet%2CcontentDetails",
             apikey=API_KEY,
             chanid=self.chan_id.id);
-        debug!("Retrieving URL {}", &url);
-        let resp = attohttpc::get(&url).send()?;
-        let text = resp.text()?;
-        trace!("Raw response: {}", &text);
-        let d: YTChannelListResponse =
-            serde_json::from_str(&text).context("Failed to parse response")?;
-        trace!("Raw deserialisation: {:?}", &d);
+        let d = parse_content_details(&url)?;
 
         let chan = d.items.first().clone().context("Missing channel info")?;
         let cd = chan.content_details.clone();
@@ -229,5 +229,47 @@ impl<'a> YoutubeQuery {
         let d: YTPlaylistItemListResponse =
             serde_json::from_str(&text).context("Faield to parse response")?;
         Ok(d)
+    }
+}
+
+/// Find channel ID either from a username or ID
+use crate::common::ChannelID;
+pub fn find_channel_id(name: &str, service: &Service) -> Result<ChannelID> {
+    match service {
+        Service::Youtube => {
+            debug!("Looking up by username");
+            let url = format!(
+                "https://www.googleapis.com/youtube/v3/channels?key={apikey}&forUsername={name}&part=snippet%2CcontentDetails",
+                apikey=API_KEY,
+                name=name);
+            let d = parse_content_details(&url)?;
+
+            if let Some(f) = d.items.first() {
+                debug!("Found channel by username");
+                Ok(ChannelID::Youtube(YoutubeID {
+                    id: f.id.clone().into(),
+                }))
+            } else {
+                debug!("Looking up by channel ID");
+                let url = format!(
+                    "https://www.googleapis.com/youtube/v3/channels?key={apikey}&id={name}&part=snippet%2CcontentDetails",
+                    apikey=API_KEY,
+                    name=name);
+                let d = parse_content_details(&url)?;
+
+                if let Some(f) = d.items.first() {
+                    debug!("Found channel by ID");
+                    Ok(ChannelID::Youtube(YoutubeID {
+                        id: f.id.clone().into(),
+                    }))
+                } else {
+                    Err(anyhow::anyhow!(
+                        "Could not find channel {} by username nor ID",
+                        name
+                    ))
+                }
+            }
+        }
+        Service::Vimeo => Err(anyhow::anyhow!("Not yet implemented!")),
     }
 }

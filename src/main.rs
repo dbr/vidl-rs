@@ -15,6 +15,8 @@ mod config;
 mod db;
 mod youtube;
 
+use crate::common::{ChannelID, Service};
+
 fn update() -> Result<()> {
     // Load config
     debug!("Loading config");
@@ -33,7 +35,7 @@ fn update() -> Result<()> {
             id: chan.chanid.clone(),
         };
 
-        let yt = crate::youtube::YoutubeQuery::new(chanid);
+        let yt = crate::youtube::YoutubeQuery::new(&chanid);
         let videos = yt.videos()?;
 
         let newest_video = chan.latest_video(&db)?;
@@ -54,18 +56,24 @@ fn update() -> Result<()> {
 }
 
 /// Add channel
-fn add(chanid: &str, service_str: &str) -> Result<()> {
-    let ytid = crate::common::YoutubeID { id: chanid.into() };
-    let yt = crate::youtube::YoutubeQuery::new(ytid);
+fn add(name: &str, service_str: &str) -> Result<()> {
+    let service = Service::from_str(service_str)?;
+    let cid = crate::youtube::find_channel_id(name, &service)?;
 
-    let meta = yt.get_metadata()?;
+    match &cid {
+        ChannelID::Youtube(ytid) => {
+            let yt = crate::youtube::YoutubeQuery::new(&ytid);
 
-    let cfg = crate::config::Config::load();
-    let db = crate::db::Database::open(&cfg)?;
-    let service = crate::db::Service::from_str(service_str)?;
-    info!("Adding channel {} on service {:?}", &chanid, &service);
-    db::Channel::create(&db, chanid, service, &meta.title, &meta.thumbnail)?;
-    Ok(())
+            let meta = yt.get_metadata()?;
+            let cfg = crate::config::Config::load();
+            let db = crate::db::Database::open(&cfg)?;
+            let service = Service::from_str(service_str)?;
+            info!("Adding Youtube channel {:?}", &ytid.id,);
+            db::Channel::create(&db, &cid, &meta.title, &meta.thumbnail)?;
+            Ok(())
+        }
+        ChannelID::Vimeo(_) => Err(anyhow::anyhow!("Not yet implemented")),
+    }
 }
 
 /// List videos
