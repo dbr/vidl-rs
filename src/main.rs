@@ -67,7 +67,6 @@ fn add(name: &str, service_str: &str) -> Result<()> {
             let meta = yt.get_metadata()?;
             let cfg = crate::config::Config::load();
             let db = crate::db::Database::open(&cfg)?;
-            let service = Service::from_str(service_str)?;
             info!("Adding Youtube channel {:?}", &ytid.id,);
             db::Channel::create(&db, &cid, &meta.title, &meta.thumbnail)?;
             Ok(())

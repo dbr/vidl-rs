@@ -28,21 +28,9 @@ pub struct YoutubeID {
     pub id: String,
 }
 
-impl YoutubeID {
-    pub fn service_str(&self) -> &str {
-        "youtube"
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct VimeoID {
     pub id: String,
-}
-
-impl VimeoID {
-    pub fn service_str(&self) -> &str {
-        "vimeo"
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -60,8 +48,8 @@ impl ChannelID {
     }
     pub fn service(&self) -> Service {
         match self {
-            ChannelID::Vimeo(x) => Service::Vimeo,
-            ChannelID::Youtube(x) => Service::Youtube,
+            ChannelID::Vimeo(_) => Service::Vimeo,
+            ChannelID::Youtube(_) => Service::Youtube,
         }
     }
 }

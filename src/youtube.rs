@@ -270,6 +270,6 @@ pub fn find_channel_id(name: &str, service: &Service) -> Result<ChannelID> {
                 }
             }
         }
-        Service::Vimeo => Err(anyhow::anyhow!("Not yet implemented!")),
+        Service::Vimeo => Err(anyhow::anyhow!("Not yet implemented!")), // FIXME: This method belongs outside of youtube.rs
     }
 }
