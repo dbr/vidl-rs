@@ -95,6 +95,15 @@ pub struct YoutubeQuery {
     chan_id: YoutubeID,
 }
 
+/// Important info about channel
+#[derive(Debug)]
+pub struct ChannelMetadata {
+    pub title: String,
+    pub thumbnail: String,
+    pub description: String,
+}
+
+/// Important info about a video
 #[derive(Debug)]
 pub struct VideoInfo {
     pub id: String,
@@ -107,6 +116,29 @@ pub struct VideoInfo {
 impl<'a> YoutubeQuery {
     pub fn new(chan_id: YoutubeID) -> YoutubeQuery {
         YoutubeQuery { chan_id }
+    }
+
+    pub fn get_metadata(&self) -> Result<ChannelMetadata> {
+        let url = format!(
+            "https://www.googleapis.com/youtube/v3/channels?key={apikey}&forUsername={chanid}&part=snippet%2CcontentDetails",
+            apikey=API_KEY,
+            chanid=self.chan_id.id);
+        debug!("Retrieving URL {}", &url);
+        let resp = attohttpc::get(&url).send()?;
+        let text = resp.text()?;
+        trace!("Raw response: {}", &text);
+        let d: YTChannelListResponse =
+            serde_json::from_str(&text).context("Failed to parse response")?;
+        trace!("Raw deserialisation: {:?}", &d);
+
+        let chan = d.items.first().clone().context("Missing channel info")?;
+        let cs = &chan.snippet;
+
+        Ok(ChannelMetadata {
+            title: cs.title.clone(),
+            thumbnail: cs.thumbnails.default.url.clone(),
+            description: cs.description.clone(),
+        })
     }
 
     pub fn videos<'i>(&'i self) -> Result<impl Iterator<Item = Vec<VideoInfo>> + 'i> {

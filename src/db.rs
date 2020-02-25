@@ -10,15 +10,14 @@ pub struct Database {
 }
 
 impl Database {
-    /// Opens connection to database, creating tables as necessary
-    pub fn open() -> Result<Database> {
-        let conn = Connection::open("/tmp/ytdl3.sqlite3")?; // FIXME: Better location
-
+    fn create_tables(conn: &Connection) -> Result<()> {
         conn.execute(
             "CREATE TABLE IF NOT EXISTS channel (
                       id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                      name          TEXT NOT NULL,
-                      service       TEXT NOT NULL
+                      chanid        TEXT NOT NULL,
+                      service       TEXT NOT NULL,
+                      title         TEXT NOT NULL,
+                      thumbnail     TEXT NOT NULL
                       )",
             params![],
         )
@@ -39,6 +38,19 @@ impl Database {
         )
         .context("Creating video table")?;
 
+        Ok(())
+    }
+    /// Opens connection to database, creating tables as necessary
+    pub fn open() -> Result<Database> {
+        let conn = Connection::open("/tmp/ytdl3.sqlite3")?; // FIXME: Better location
+        Database::create_tables(&conn)?;
+        Ok(Database { conn })
+    }
+
+    /// Opens a non-persistant database in memory. Likely only useful for test cases.
+    pub fn open_in_memory() -> Result<Database> {
+        let conn = Connection::open_in_memory()?;
+        Database::create_tables(&conn)?;
         Ok(Database { conn })
     }
 }
@@ -84,34 +96,66 @@ pub struct Channel {
     pub chanid: String,
     /// Which service the channel is on
     pub service: Service,
+
+    /// Human-readable title
+    pub title: String,
+    /// URL to icon for channel
+    pub thumbnail: String,
 }
 
 impl Channel {
-    /// Get Channel object for given channel, creating it in database if not already present
-    pub fn get_or_create(db: &Database, chanid: &str, service: Service) -> Result<Channel> {
-        let chan_sqlid: i64 = db
-            .conn
+    /// Get Channel object for given channel, returning error it it does not exist
+    pub fn get(db: &Database, chanid: &str, service: Service) -> Result<Channel> {
+        let chan = db.conn
             .query_row(
-                "SELECT id FROM channel WHERE name=?1 AND service = ?2",
+                "SELECT id, chanid, service, title, thumbnail FROM channel WHERE chanid=?1 AND service = ?2",
                 params![chanid, service.as_str()],
-                |row| row.get(0),
+                |row| {
+                    Ok(Channel {
+                        id: row.get(0)?,
+                        chanid: row.get(1)?,
+                        service: row.get(2)?,
+                        title: row.get(3)?,
+                        thumbnail: row.get(4)?,
+                    })
+                },
             )
-            .or_else(|_err| {
-                // FIXME: This will create new entry if above query fails for any reason, not just doesn't exist
-                db.conn.execute(
-                    "INSERT INTO channel (name, service) VALUES (?1, ?2)",
-                    params![chanid, service.as_str()],
-                )?;
-                let x: Result<i64> = Ok(db.conn.last_insert_rowid());
-                x
-            })
-            .context("Failed to get (or create) channel ID")?;
+            .context("Failed to find channel")?;
 
-        Ok(Channel {
-            id: chan_sqlid,
-            chanid: chanid.into(),
-            service: service,
-        })
+        Ok(chan)
+    }
+
+    /// Create channel in database
+    pub fn create(
+        db: &Database,
+        chanid: &str,
+        service: Service,
+        channel_title: &str,
+        thumbnail_url: &str,
+    ) -> Result<Channel> {
+        let check_existing = db.conn.query_row(
+            "SELECT id FROM channel WHERE chanid=?1 AND service=?2",
+            params![chanid, service.as_str()],
+            |_| Ok(()),
+        );
+        match check_existing {
+            // Throw error if channel already exists
+            Ok(_) => Err(anyhow::anyhow!("Channel already exists in database")),
+
+            // No results is good
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(()),
+
+            // Propogate any other errors
+            Err(e) => Err(anyhow::anyhow!(e)),
+        }?;
+
+        db.conn.execute(
+            "INSERT INTO channel (chanid, service, title, thumbnail) VALUES (?1, ?2, ?3, ?4)",
+            params![chanid, service.as_str(), channel_title, thumbnail_url],
+        )?;
+
+        // Return newly created channel
+        Channel::get(&db, &chanid, service)
     }
 
     /// Add supplied video to database
@@ -186,12 +230,16 @@ impl Channel {
 
 /// All channels present in database
 pub fn list_channels(db: &Database) -> Result<Vec<Channel>> {
-    let mut stmt = db.conn.prepare("SELECT id, name, service FROM channel")?;
+    let mut stmt = db
+        .conn
+        .prepare("SELECT id, chanid, service, title, thumbnail FROM channel")?;
     let chaniter = stmt.query_map(params![], |row| {
         Ok(Channel {
             id: row.get(0)?,
             chanid: row.get(1)?,
             service: row.get(2)?,
+            title: row.get(3)?,
+            thumbnail: row.get(4)?,
         })
     })?;
     let mut ret = vec![];
@@ -199,4 +247,16 @@ pub fn list_channels(db: &Database) -> Result<Vec<Channel>> {
         ret.push(r?);
     }
     Ok(ret)
+}
+
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_list_channels() -> Result<()> {
+        let mdb = Database::open_in_memory()?;
+        let chans = list_channels(&mdb)?;
+        assert_eq!(chans.len(), 0);
+        Ok(())
+    }
 }

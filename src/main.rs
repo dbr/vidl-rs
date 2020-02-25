@@ -53,10 +53,15 @@ fn update() -> Result<()> {
 
 /// Add channel
 fn add(chanid: &str, service_str: &str) -> Result<()> {
+    let ytid = crate::common::YoutubeID { id: chanid.into() };
+    let yt = crate::youtube::YoutubeQuery::new(ytid);
+
+    let meta = yt.get_metadata()?;
+
     let db = crate::db::Database::open()?;
     let service = crate::db::Service::from_str(service_str)?;
     info!("Adding channel {} on service {:?}", &chanid, &service);
-    db::Channel::get_or_create(&db, chanid, service)?;
+    db::Channel::create(&db, chanid, service, &meta.title, &meta.thumbnail)?;
     Ok(())
 }
 
@@ -71,16 +76,24 @@ fn list(chan_num: Option<&str>) -> Result<()> {
             if &format!("{}", c.id) == chan_num {
                 for v in c.all_videos(&db)? {
                     println!(
-                        "Title: {}\nPublished: {}\nDescription: {}\n----",
-                        v.title, v.published_at, v.description
+                        "Title: {}\nPublished: {}\nThumbnail: {}\nDescription: {}\n----",
+                        v.title, v.published_at, v.thumbnail_url, v.description
                     );
                 }
             }
         }
     } else {
+        // List all channels
         let channels = crate::db::list_channels(&db)?;
         for c in channels {
-            println!("{} - {} (service: {})", c.id, c.chanid, c.service.as_str());
+            println!(
+                "{} - {} ({} on service {})\nThumbnail: {}",
+                c.id,
+                c.title,
+                c.chanid,
+                c.service.as_str(),
+                c.thumbnail,
+            );
         }
     }
     Ok(())
