@@ -89,12 +89,6 @@ struct YTPlaylistItem {
     snippet: YTPlaylistItemSnippet,
 }
 
-/// Object to query data about given channel
-#[derive(Debug)]
-pub struct YoutubeQuery {
-    chan_id: YoutubeID,
-}
-
 /// Important info about channel
 #[derive(Debug)]
 pub struct ChannelMetadata {
@@ -111,6 +105,12 @@ pub struct VideoInfo {
     pub description: String,
     pub thumbnail_url: String,
     pub published_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Object to query data about given channel
+#[derive(Debug)]
+pub struct YoutubeQuery {
+    chan_id: YoutubeID,
 }
 
 impl<'a> YoutubeQuery {
