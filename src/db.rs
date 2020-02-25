@@ -257,7 +257,7 @@ pub fn list_channels(db: &Database) -> Result<Vec<Channel>> {
     Ok(ret)
 }
 
-#[test]
+#[cfg(test)]
 mod tests {
     use super::*;
 
