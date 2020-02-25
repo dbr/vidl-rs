@@ -23,16 +23,19 @@ impl Service {
     }
 }
 
+/// Identifier for channel on Youtube
 #[derive(Debug, Clone)]
 pub struct YoutubeID {
     pub id: String,
 }
 
+/// Identifier for channel on Vimeo
 #[derive(Debug, Clone)]
 pub struct VimeoID {
     pub id: String,
 }
 
+/// Identifier for a channel on a given service
 #[derive(Debug, Clone)]
 pub enum ChannelID {
     Youtube(YoutubeID),
