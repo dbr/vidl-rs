@@ -248,6 +248,25 @@ mod tests {
         let mdb = Database::open_in_memory()?;
         let chans = list_channels(&mdb)?;
         assert_eq!(chans.len(), 0);
+
+        let cid = ChannelID::Youtube(crate::common::YoutubeID {
+            id: "UCUBfKCp83QT19JCUekEdxOQ".into(),
+        });
+
+        Channel::create(
+            &mdb,
+            &cid,
+            "test channel",
+            "http://example.com/thumbnail.jpg",
+        )?;
+
+        let chans = list_channels(&mdb)?;
+        assert_eq!(chans.len(), 1);
+        assert_eq!(chans[0].id, 1);
+        assert_eq!(chans[0].chanid, "UCUBfKCp83QT19JCUekEdxOQ");
+        assert_eq!(chans[0].title, "test channel");
+        assert_eq!(chans[0].thumbnail, "http://example.com/thumbnail.jpg");
+
         Ok(())
     }
 }
