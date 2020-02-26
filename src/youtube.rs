@@ -4,6 +4,7 @@ use log::{debug, trace};
 use crate::common::{Service, YoutubeID};
 
 static API_KEY: &str = "AIzaSyBBUxzImakMKKW3B6Qu47lR9xMpb6DNqQE"; // ytdl public API browser key (for Youtube API v3)
+                                                                  // FIXME: Rename/recreate API key
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct YTChannelListResponse {

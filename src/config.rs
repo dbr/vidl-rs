@@ -7,10 +7,10 @@ pub struct Config {
 
 impl Config {
     pub fn load() -> Config {
-        let pd = ProjectDirs::from("uk.co", "dbrweb", "ytdl")
+        let pd = ProjectDirs::from("uk.co", "dbrweb", "vidl")
             .expect("Unable to determine configuration directories");
         let cfg = pd.data_dir();
-        let db_filepath = cfg.join("ytdl.sqlite3");
+        let db_filepath = cfg.join("vidl.sqlite3");
         Config {
             db_filepath: db_filepath,
         }

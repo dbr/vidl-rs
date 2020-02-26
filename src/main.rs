@@ -138,7 +138,7 @@ fn config_logging(verbosity: u64) -> Result<()> {
             ))
         })
         .level(thirdparty_level)
-        .level_for("ytdl", internal_level)
+        .level_for("vidl", internal_level)
         .chain(std::io::stdout())
         .apply()?;
 
@@ -162,7 +162,7 @@ fn main() -> Result<()> {
         .about("list channels/videos")
         .arg(Arg::with_name("id"));
 
-    let app = App::new("ytdl")
+    let app = App::new("vidl")
         .subcommand(sc_add)
         .subcommand(sc_update)
         .subcommand(sc_list)
