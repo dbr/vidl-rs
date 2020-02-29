@@ -3,8 +3,17 @@ use log::{debug, trace};
 
 use crate::common::{Service, YoutubeID};
 
-static API_KEY: &str = "AIzaSyBBUxzImakMKKW3B6Qu47lR9xMpb6DNqQE"; // ytdl public API browser key (for Youtube API v3)
-                                                                  // FIXME: Rename/recreate API key
+static API_KEY: &str = "AIzaSyA8kgtG0_B8QWejoVD12B4OVoPwHS6Ax44"; // VIDL public API browser key (for Youtube API v3)
+
+fn api_prefix() -> String {
+    #[cfg(test)]
+    let prefix: &str = &mockito::server_url();
+
+    #[cfg(not(test))]
+    let prefix: &str = "https://www.googleapis.com";
+
+    prefix.into()
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct YTChannelListResponse {
@@ -114,8 +123,8 @@ fn parse_content_details(url: &str) -> Result<YTChannelListResponse> {
     let resp = attohttpc::get(url).send()?;
     let text = resp.text()?;
     trace!("Raw response: {}", &text);
-    let d: YTChannelListResponse =
-        serde_json::from_str(&text).context("Failed to parse response")?;
+    let d: YTChannelListResponse = serde_json::from_str(&text)
+        .with_context(|| format!("Failed to parse response from {}", &url))?;
     trace!("Raw deserialisation: {:?}", &d);
     Ok(d)
 }
@@ -133,9 +142,11 @@ impl<'a> YoutubeQuery<'a> {
 
     pub fn get_metadata(&self) -> Result<ChannelMetadata> {
         let url = format!(
-            "https://www.googleapis.com/youtube/v3/channels?key={apikey}&id={chanid}&part=snippet%2CcontentDetails",
-            apikey=API_KEY,
-            chanid=self.chan_id.id);
+            "{prefix}/youtube/v3/channels?key={apikey}&id={chanid}&part=snippet%2CcontentDetails",
+            prefix = api_prefix(),
+            apikey = API_KEY,
+            chanid = self.chan_id.id
+        );
         let d = parse_content_details(&url)?;
 
         let chan = d.items.first().clone().context("Missing channel info")?;
@@ -154,9 +165,11 @@ impl<'a> YoutubeQuery<'a> {
         // Or username:
         // https://www.googleapis.com/youtube/v3/channels?key={apikey}&forUsername={chanid}&part=contentDetails
         let url = format!(
-            "https://www.googleapis.com/youtube/v3/channels?key={apikey}&id={chanid}&part=snippet%2CcontentDetails",
-            apikey=API_KEY,
-            chanid=self.chan_id.id);
+            "{prefix}/youtube/v3/channels?key={apikey}&id={chanid}&part=snippet%2CcontentDetails",
+            prefix = api_prefix(),
+            apikey = API_KEY,
+            chanid = self.chan_id.id
+        );
         let d = parse_content_details(&url)?;
 
         let chan = d.items.first().clone().context("Missing channel info")?;
@@ -217,7 +230,8 @@ impl<'a> YoutubeQuery<'a> {
             Some(val) => format!("&pageToken={}", val),
         };
 
-        let url = format!("https://www.googleapis.com/youtube/v3/playlistItems?key={apikey}&part=snippet&maxResults={num}&playlistId={playlist}{page}",
+        let url = format!("{prefix}/youtube/v3/playlistItems?key={apikey}&part=snippet&maxResults={num}&playlistId={playlist}{page}",
+            prefix = api_prefix(),
             apikey=API_KEY,
             num=50,
             playlist=playlist_id,
@@ -227,8 +241,8 @@ impl<'a> YoutubeQuery<'a> {
 
         let resp = attohttpc::get(&url).send()?;
         let text = resp.text()?;
-        let d: YTPlaylistItemListResponse =
-            serde_json::from_str(&text).context("Faield to parse response")?;
+        let d: YTPlaylistItemListResponse = serde_json::from_str(&text)
+            .with_context(|| format!("Failed to parse response from URL {}", url))?;
         Ok(d)
     }
 }
@@ -240,7 +254,8 @@ pub fn find_channel_id(name: &str, service: &Service) -> Result<ChannelID> {
         Service::Youtube => {
             debug!("Looking up by username");
             let url = format!(
-                "https://www.googleapis.com/youtube/v3/channels?key={apikey}&forUsername={name}&part=snippet%2CcontentDetails",
+                "{prefix}/youtube/v3/channels?key={apikey}&forUsername={name}&part=snippet%2CcontentDetails",
+                prefix = api_prefix(),
                 apikey=API_KEY,
                 name=name);
             let d = parse_content_details(&url)?;
@@ -253,7 +268,8 @@ pub fn find_channel_id(name: &str, service: &Service) -> Result<ChannelID> {
             } else {
                 debug!("Looking up by channel ID");
                 let url = format!(
-                    "https://www.googleapis.com/youtube/v3/channels?key={apikey}&id={name}&part=snippet%2CcontentDetails",
+                    "{prefix}/youtube/v3/channels?key={apikey}&id={name}&part=snippet%2CcontentDetails",
+                    prefix = api_prefix(),
                     apikey=API_KEY,
                     name=name);
                 let d = parse_content_details(&url)?;
@@ -272,5 +288,69 @@ pub fn find_channel_id(name: &str, service: &Service) -> Result<ChannelID> {
             }
         }
         Service::Vimeo => Err(anyhow::anyhow!("Not yet implemented!")), // FIXME: This method belongs outside of youtube.rs
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_basic_find() -> Result<()> {
+        // FIXME: Mock HTTP responses
+        let _m = mockito::mock(
+            "GET",
+            "/youtube/v3/channels?key=AIzaSyA8kgtG0_B8QWejoVD12B4OVoPwHS6Ax44&forUsername=roosterteeth&part=snippet%2CcontentDetails")
+            .with_body_from_file("testdata/channel_rt.json")
+           .create();
+        let _m2 = mockito::mock(
+            "GET",
+            "/youtube/v3/channels?key=AIzaSyA8kgtG0_B8QWejoVD12B4OVoPwHS6Ax44&forUsername=UCzH3iADRIq1IJlIXjfNgTpA&part=snippet%2CcontentDetails"
+            ).with_body_from_file("testdata/channel_rt_with_wrong_username.json")
+            .create();
+        let _m3 = mockito::mock(
+            "GET",
+            "/youtube/v3/channels?key=AIzaSyA8kgtG0_B8QWejoVD12B4OVoPwHS6Ax44&id=UCzH3iADRIq1IJlIXjfNgTpA&part=snippet%2CcontentDetails"
+        )
+            .with_body_from_file("testdata/channel_rt.json")
+            .create();
+
+        let c = find_channel_id("roosterteeth", &crate::common::Service::Youtube)?;
+        assert_eq!(c.id_str(), "UCzH3iADRIq1IJlIXjfNgTpA");
+        assert_eq!(c.service(), crate::common::Service::Youtube);
+
+        // Check same `ChannelID` is found by ID as by username
+        let by_id = find_channel_id("UCzH3iADRIq1IJlIXjfNgTpA", &crate::common::Service::Youtube)?;
+        assert_eq!(by_id, c);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_video_list() -> Result<()> {
+        let _m = mockito::mock("GET", "/youtube/v3/channels?key=AIzaSyA8kgtG0_B8QWejoVD12B4OVoPwHS6Ax44&id=UCzH3iADRIq1IJlIXjfNgTpA&part=snippet%2CcontentDetails")
+            .with_body_from_file("testdata/channel_rt.json")
+           .create();
+
+        let _m2 = mockito::mock("GET", "/youtube/v3/playlistItems?key=AIzaSyA8kgtG0_B8QWejoVD12B4OVoPwHS6Ax44&part=snippet&maxResults=50&playlistId=UUzH3iADRIq1IJlIXjfNgTpA")
+            .with_body_from_file("testdata/playlist_rt.json")
+            .create();
+        let cid = crate::common::YoutubeID {
+            id: "UCzH3iADRIq1IJlIXjfNgTpA".into(),
+        };
+        let yt = YoutubeQuery::new(&cid);
+        let vids = yt.videos()?;
+        let result: Vec<super::VideoInfo> = vids.flatten().take(3).collect();
+        assert_eq!(result[0].title, "CAN WE LEARN TO DRIVE STICK? | RT Life");
+        assert_eq!(
+            result[1].title,
+            "Pancake Podcast 2020 - Ep. #585  - RT Podcast"
+        );
+        assert_eq!(
+            result[2].title,
+            "Sleepy Plane Stories - Rooster Teeth Animated Adventures"
+        );
+        dbg!(result);
+        Ok(())
     }
 }
