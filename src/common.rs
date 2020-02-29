@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 /// Supported services
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Service {
     Youtube,
     Vimeo,
@@ -24,19 +24,19 @@ impl Service {
 }
 
 /// Identifier for channel on Youtube
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct YoutubeID {
     pub id: String,
 }
 
 /// Identifier for channel on Vimeo
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VimeoID {
     pub id: String,
 }
 
 /// Identifier for a channel on a given service
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ChannelID {
     Youtube(YoutubeID),
     Vimeo(VimeoID),
