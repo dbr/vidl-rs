@@ -246,19 +246,26 @@ mod tests {
     #[test]
     fn test_list_channels() -> Result<()> {
         let mdb = Database::open_in_memory()?;
-        let chans = list_channels(&mdb)?;
-        assert_eq!(chans.len(), 0);
 
-        let cid = ChannelID::Youtube(crate::common::YoutubeID {
-            id: "UCUBfKCp83QT19JCUekEdxOQ".into(),
-        });
+        // Check no channels exist in newly created DB
+        {
+            let chans = list_channels(&mdb)?;
+            assert_eq!(chans.len(), 0);
+        }
 
-        Channel::create(
-            &mdb,
-            &cid,
-            "test channel",
-            "http://example.com/thumbnail.jpg",
-        )?;
+        // Create channel
+        {
+            let cid = ChannelID::Youtube(crate::common::YoutubeID {
+                id: "UCUBfKCp83QT19JCUekEdxOQ".into(),
+            });
+
+            Channel::create(
+                &mdb,
+                &cid,
+                "test channel",
+                "http://example.com/thumbnail.jpg",
+            )?;
+        }
 
         let chans = list_channels(&mdb)?;
         assert_eq!(chans.len(), 1);
@@ -267,6 +274,71 @@ mod tests {
         assert_eq!(chans[0].title, "test channel");
         assert_eq!(chans[0].thumbnail, "http://example.com/thumbnail.jpg");
 
+        let c = &chans[0];
+
+        // Check no videos exist
+        {
+            let vids = c.all_videos(&mdb)?;
+            assert_eq!(vids.len(), 0);
+        }
+
+        // ..and no latest video
+        {
+            let latest = c.latest_video(&mdb)?;
+            assert!(latest.is_none());
+        }
+
+        // Create new video
+        {
+            let when = chrono::DateTime::parse_from_rfc3339("2001-12-30T16:39:57Z")?
+                .with_timezone(&chrono::Utc);
+
+            let new_video = VideoInfo {
+                id: "an id".into(),
+                title: "A title!".into(),
+                description: "A ficticious video.\nIt is quite good".into(),
+                thumbnail_url: "http://example.com/vidthumb.jpg".into(),
+                published_at: when,
+            };
+            c.add_video(&mdb, &new_video)?;
+        }
+
+        // Check video now exists
+        {
+            let vids = c.all_videos(&mdb)?;
+            assert_eq!(vids.len(), 1);
+            assert_eq!(vids[0].id, "an id");
+            assert_eq!(vids[0].title, "A title!");
+            assert_eq!(vids[0].description, "A ficticious video.\nIt is quite good");
+            assert_eq!(vids[0].thumbnail_url, "http://example.com/vidthumb.jpg");
+            assert_eq!(
+                vids[0].published_at,
+                chrono::DateTime::parse_from_rfc3339("2001-12-30T16:39:57Z")?
+                    .with_timezone(&chrono::Utc)
+            )
+        }
+
+        // Create "older" video for latest_video test
+        {
+            let when = chrono::DateTime::parse_from_rfc3339("1999-04-01T12:30:01Z")?
+                .with_timezone(&chrono::Utc);
+
+            let new_video = VideoInfo {
+                id: "old id".into(),
+                title: "Old video".into(),
+                description: "Was created a while ago".into(),
+                thumbnail_url: "http://example.com/oldvid.jpg".into(),
+                published_at: when,
+            };
+            c.add_video(&mdb, &new_video)?;
+        }
+
+        // Check latest video method returns the older video, not oldest-inserted
+        {
+            let latest = c.latest_video(&mdb)?;
+            assert!(latest.is_some());
+            assert_eq!(latest.unwrap().id, "an id");
+        }
         Ok(())
     }
 }
