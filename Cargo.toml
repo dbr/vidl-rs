@@ -8,7 +8,6 @@ anyhow = "1"
 attohttpc = "*"
 chrono = "0.4"
 clap = "*"
-env_logger = "*"
 fern = "*"
 log = "*"
 serde = "*"
@@ -16,6 +15,14 @@ serde_derive = "*"
 serde_json = "1.0"
 threadpool = "*"
 directories = "2.0.2"
+rouille = "3"
+
+[patch.crates-io]
+# Patch to newer version than the latest released 3.0.0, contains websocket CPU fix and poll_timeout
+rouille = { git = 'https://github.com/tomaka/rouille', rev = 'e9692e1b19c8d25a742129a16bbe826c686ab274' }
+
+[dev-dependencies]
+mockito = "*"
 
 [dependencies.rusqlite]
 features = ["chrono"]

@@ -1,4 +1,3 @@
-extern crate env_logger;
 extern crate serde;
 extern crate serde_json;
 
@@ -13,6 +12,7 @@ use clap::{App, Arg, SubCommand};
 mod common;
 mod config;
 mod db;
+mod web;
 mod youtube;
 
 use crate::common::{ChannelID, Service};
@@ -162,10 +162,13 @@ fn main() -> Result<()> {
         .about("list channels/videos")
         .arg(Arg::with_name("id"));
 
+    let sc_web = SubCommand::with_name("web").about("serve web interface");
+
     let app = App::new("vidl")
         .subcommand(sc_add)
         .subcommand(sc_update)
         .subcommand(sc_list)
+        .subcommand(sc_web)
         .arg(
             Arg::with_name("verbose")
                 .short("v")
@@ -187,6 +190,7 @@ fn main() -> Result<()> {
         )?,
         ("update", Some(_sub_m)) => update()?,
         ("list", Some(sub_m)) => list(sub_m.value_of("id"))?,
+        ("web", Some(_sub_m)) => crate::web::serve()?,
         _ => {
             eprintln!("Error: Unknown subcommand");
         }
