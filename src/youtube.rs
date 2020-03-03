@@ -81,6 +81,13 @@ struct YTPlaylistPageInfo {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+struct YTPlaylistItemSnippetResource {
+    kind: String,
+    video_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 struct YTPlaylistItemSnippet {
     published_at: String,
     title: String,
@@ -91,6 +98,8 @@ struct YTPlaylistItemSnippet {
     channel_id: String,
     channel_title: String,
     playlist_id: String,
+
+    resource_id: YTPlaylistItemSnippetResource,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -111,6 +120,7 @@ pub struct ChannelMetadata {
 #[derive(Debug)]
 pub struct VideoInfo {
     pub id: String,
+    pub url: String,
     pub title: String,
     pub description: String,
     pub thumbnail_url: String,
@@ -203,6 +213,10 @@ impl<'a> YoutubeQuery<'a> {
                 .iter()
                 .map(|d| VideoInfo {
                     id: d.id.clone(),
+                    url: format!(
+                        "http://youtube.com/watch?v={id}",
+                        id = d.snippet.resource_id.video_id
+                    ),
                     title: d.snippet.title.clone(),
                     description: d.snippet.description.clone(),
                     thumbnail_url: d.snippet.thumbnails.default.url.clone(),

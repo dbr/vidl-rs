@@ -31,6 +31,7 @@ impl Database {
                       internalid    INTEGER PRIMARY KEY AUTOINCREMENT,
                       channel       INTEGER NOT NULL,
                       id            TEXT NOT NULL,
+                      url           TEXT NOT NULL,
                       title         TEXT NOT NULL,
                       description   TEXT NOT NULL,
                       thumbnail     TEXT NOT NULL,
@@ -151,11 +152,12 @@ impl Channel {
     /// Add supplied video to database
     pub fn add_video(&self, db: &Database, video: &VideoInfo) -> Result<()> {
         db.conn.execute(
-            "INSERT INTO video (channel, id, title, description, thumbnail, published_at)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO video (channel, id, url, title, description, thumbnail, published_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 self.id,
                 video.id,
+                video.url,
                 video.title,
                 video.description,
                 video.thumbnail_url,
@@ -169,7 +171,7 @@ impl Channel {
     /// Return the most recently published video
     pub fn latest_video(&self, db: &Database) -> Result<Option<VideoInfo>> {
         let v: Result<VideoInfo, rusqlite::Error> = db.conn.query_row(
-            "SELECT id, title, description, thumbnail, published_at FROM video
+            "SELECT id, url, title, description, thumbnail, published_at FROM video
                 WHERE channel=?1
                 ORDER BY published_at DESC
                 LIMIT 1",
@@ -177,10 +179,11 @@ impl Channel {
             |row| {
                 Ok(VideoInfo {
                     id: row.get(0)?,
-                    title: row.get(1)?,
-                    description: row.get(2)?,
-                    thumbnail_url: row.get(3)?,
-                    published_at: row.get(4)?,
+                    url: row.get(1)?,
+                    title: row.get(2)?,
+                    description: row.get(3)?,
+                    thumbnail_url: row.get(4)?,
+                    published_at: row.get(5)?,
                 })
             },
         );
@@ -197,17 +200,18 @@ impl Channel {
 
     pub fn all_videos(&self, db: &Database) -> Result<Vec<VideoInfo>> {
         let mut stmt = db.conn.prepare(
-            "SELECT id, title, description, thumbnail, published_at FROM video
+            "SELECT id, url, title, description, thumbnail, published_at FROM video
             WHERE channel=?1
             ORDER BY published_at DESC",
         )?;
         let chaniter = stmt.query_map(params![self.id], |row| {
             Ok(VideoInfo {
                 id: row.get(0)?,
-                title: row.get(1)?,
-                description: row.get(2)?,
-                thumbnail_url: row.get(3)?,
-                published_at: row.get(4)?,
+                url: row.get(1)?,
+                title: row.get(2)?,
+                description: row.get(3)?,
+                thumbnail_url: row.get(4)?,
+                published_at: row.get(5)?,
             })
         })?;
         let mut ret = vec![];
@@ -295,6 +299,7 @@ mod tests {
 
             let new_video = VideoInfo {
                 id: "an id".into(),
+                url: "http://example.com/watch?v=abc123".into(),
                 title: "A title!".into(),
                 description: "A ficticious video.\nIt is quite good".into(),
                 thumbnail_url: "http://example.com/vidthumb.jpg".into(),
@@ -308,6 +313,7 @@ mod tests {
             let vids = c.all_videos(&mdb)?;
             assert_eq!(vids.len(), 1);
             assert_eq!(vids[0].id, "an id");
+            assert_eq!(vids[0].url, "http://example.com/watch?v=abc123");
             assert_eq!(vids[0].title, "A title!");
             assert_eq!(vids[0].description, "A ficticious video.\nIt is quite good");
             assert_eq!(vids[0].thumbnail_url, "http://example.com/vidthumb.jpg");
@@ -325,6 +331,7 @@ mod tests {
 
             let new_video = VideoInfo {
                 id: "old id".into(),
+                url: "http://example.com/watch?v=old".into(),
                 title: "Old video".into(),
                 description: "Was created a while ago".into(),
                 thumbnail_url: "http://example.com/oldvid.jpg".into(),

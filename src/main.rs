@@ -87,8 +87,8 @@ fn list(chan_num: Option<&str>) -> Result<()> {
             if &format!("{}", c.id) == chan_num {
                 for v in c.all_videos(&db)? {
                     println!(
-                        "Title: {}\nPublished: {}\nThumbnail: {}\nDescription: {}\n----",
-                        v.title, v.published_at, v.thumbnail_url, v.description
+                        "Title: {}\nURL: {}\nPublished: {}\nThumbnail: {}\nDescription: {}\n----",
+                        v.title, v.url, v.published_at, v.thumbnail_url, v.description
                     );
                 }
             }
