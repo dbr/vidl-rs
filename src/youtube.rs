@@ -220,7 +220,6 @@ impl<'a> YoutubeQuery<'a> {
                     title: d.snippet.title.clone(),
                     description: d.snippet.description.clone(),
                     thumbnail_url: d.snippet.thumbnails.default.url.clone(),
-                    // published_at: time::strptime(&d.snippet.published_at, "Y-m-d\\TH:i:s.uP").unwrap_or(time::now())
                     published_at: d
                         .snippet
                         .published_at

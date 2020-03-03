@@ -91,6 +91,27 @@ pub struct Channel {
 }
 
 impl Channel {
+    pub fn get_by_sqlid(db: &Database, id: i64) -> Result<Channel> {
+        let chan = db
+            .conn
+            .query_row(
+                "SELECT id, chanid, service, title, thumbnail FROM channel WHERE id=?1",
+                params![id],
+                |row| {
+                    Ok(Channel {
+                        id: row.get(0)?,
+                        chanid: row.get(1)?,
+                        service: row.get(2)?,
+                        title: row.get(3)?,
+                        thumbnail: row.get(4)?,
+                    })
+                },
+            )
+            .context("Failed to find channel")?;
+
+        Ok(chan)
+    }
+
     /// Get Channel object for given channel, returning error it it does not exist
     pub fn get(db: &Database, cid: &ChannelID) -> Result<Channel> {
         let chan = db.conn
