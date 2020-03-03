@@ -367,4 +367,19 @@ mod test {
         dbg!(result);
         Ok(())
     }
+
+    #[test]
+    fn test_metadata() -> Result<()> {
+        let _m = mockito::mock("GET", "/youtube/v3/channels?key=AIzaSyA8kgtG0_B8QWejoVD12B4OVoPwHS6Ax44&id=UCzH3iADRIq1IJlIXjfNgTpA&part=snippet%2CcontentDetails")
+            .with_body_from_file("testdata/channel_rt.json")
+            .create();
+
+        let cid = crate::common::YoutubeID {
+            id: "UCzH3iADRIq1IJlIXjfNgTpA".into(),
+        };
+        let yt = YoutubeQuery::new(&cid);
+        let meta = yt.get_metadata()?;
+        assert_eq!(meta.title, "Rooster Teeth");
+        Ok(())
+    }
 }
