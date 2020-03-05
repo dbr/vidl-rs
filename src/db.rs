@@ -156,15 +156,17 @@ impl Channel {
             Err(e) => Err(anyhow::anyhow!(e)),
         }?;
 
-        db.conn.execute(
-            "INSERT INTO channel (chanid, service, title, thumbnail) VALUES (?1, ?2, ?3, ?4)",
-            params![
-                cid.id_str(),
-                cid.service().as_str(),
-                channel_title,
-                thumbnail_url,
-            ],
-        )?;
+        db.conn
+            .execute(
+                "INSERT INTO channel (chanid, service, title, thumbnail) VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    cid.id_str(),
+                    cid.service().as_str(),
+                    channel_title,
+                    thumbnail_url,
+                ],
+            )
+            .context("Insert channel query")?;
 
         // Return newly created channel
         Channel::get(&db, cid)
@@ -172,19 +174,21 @@ impl Channel {
 
     /// Add supplied video to database
     pub fn add_video(&self, db: &Database, video: &VideoInfo) -> Result<()> {
-        db.conn.execute(
-            "INSERT INTO video (channel, id, url, title, description, thumbnail, published_at)
+        db.conn
+            .execute(
+                "INSERT INTO video (channel, id, url, title, description, thumbnail, published_at)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![
-                self.id,
-                video.id,
-                video.url,
-                video.title,
-                video.description,
-                video.thumbnail_url,
-                video.published_at.to_rfc3339(),
-            ],
-        )?;
+                params![
+                    self.id,
+                    video.id,
+                    video.url,
+                    video.title,
+                    video.description,
+                    video.thumbnail_url,
+                    video.published_at.to_rfc3339(),
+                ],
+            )
+            .context("Add video query")?;
 
         Ok(())
     }
