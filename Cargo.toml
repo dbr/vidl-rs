@@ -16,6 +16,8 @@ serde_json = "1.0"
 threadpool = "*"
 directories = "2.0.2"
 rouille = "3"
+tera = "1.0"
+lazy_static = "*"
 
 [patch.crates-io]
 # Patch to newer version than the latest released 3.0.0, contains websocket CPU fix and poll_timeout

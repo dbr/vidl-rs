@@ -6,6 +6,7 @@ use anyhow::Result;
 use log::info;
 use rouille::{router, Request, Response};
 use serde_derive::Serialize;
+use tera::Tera;
 
 use crate::config::Config;
 use crate::db::Channel;
@@ -19,6 +20,7 @@ pub struct WebChannel {
     title: String,
     icon: String,
 }
+
 impl From<Channel> for WebChannel {
     fn from(src: Channel) -> WebChannel {
         WebChannel {
@@ -46,6 +48,7 @@ impl From<Vec<Channel>> for WebChannelList {
 #[derive(Debug, Serialize)]
 pub struct WebVideoInfo {
     id: String,
+    url: String,
     title: String,
     description: String,
     thumbnail_url: String,
@@ -56,6 +59,7 @@ impl From<VideoInfo> for WebVideoInfo {
     fn from(src: VideoInfo) -> WebVideoInfo {
         WebVideoInfo {
             id: src.id,
+            url: src.url,
             title: src.title,
             description: src.description,
             thumbnail_url: src.thumbnail_url,
@@ -98,7 +102,37 @@ fn web_channel(id: i64) -> Result<Response> {
     Ok(Response::json(&ret))
 }
 
-fn handle_response(request: &Request) -> Response {
+fn page_chan_list(templates: &Tera) -> Result<Response> {
+    let cfg = crate::config::Config::load();
+    let db = crate::db::Database::open(&cfg)?;
+    let chans = crate::db::list_channels(&db)?;
+    let ret: WebChannelList = chans.into();
+
+    let mut ctx = tera::Context::new();
+    ctx.insert("chans", &ret);
+    let t = templates.render("channel_list.html", &ctx).unwrap();
+    Ok(Response::html(t))
+}
+
+fn page_list_videos(id: i64, templates: &Tera) -> Result<Response> {
+    let cfg = crate::config::Config::load();
+    let db = crate::db::Database::open(&cfg)?;
+    let c = crate::db::Channel::get_by_sqlid(&db, id)?;
+    let videos = c.all_videos(&db)?;
+
+    let ret = WebChannelVideos {
+        channel: c.into(),
+        videos: videos.into_iter().map(|v| v.into()).collect(),
+    };
+
+    let mut ctx = tera::Context::new();
+    ctx.insert("videos", &ret);
+    let t = templates.render("video_list.html", &ctx).unwrap();
+
+    Ok(Response::html(t))
+}
+
+fn handle_response(request: &Request, templates: &Tera) -> Response {
     if let Some(request) = request.remove_prefix("/static") {
         if !cfg!(debug_assertions) {
             // In release mode, bundle static stuff into binary via include_str!()
@@ -118,8 +152,12 @@ fn handle_response(request: &Request) -> Response {
 
     let resp: Result<Response> = router!(request,
         (GET) ["/"] => {
-            Ok(Response::html("test"))
+            page_chan_list(&templates)
         },
+        (GET) ["/channel/{chanid}", chanid: i64] => {
+            page_list_videos(chanid, &templates)
+        },
+
         (GET) ["/youtube/"] => {
             Ok(Response::html("test"))
         },
@@ -166,10 +204,23 @@ fn handle_response(request: &Request) -> Response {
 pub fn serve() -> Result<()> {
     let cfg = Config::load();
 
+    let templates: Tera = {
+        let mut tera = match Tera::new("templates/**/*") {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!("Parsing error(s): {}", e);
+                ::std::process::exit(1);
+            }
+        };
+        tera.autoescape_on(vec!["html", ".sql"]);
+        tera
+    };
+
     println!("yep");
     let addr = format!("{}:{}", cfg.web_host, cfg.web_port);
     info!("Listening on http://{}", &addr);
-    let srv = rouille::Server::new(&addr, move |request| handle_response(request)).unwrap();
+    let srv =
+        rouille::Server::new(&addr, move |request| handle_response(request, &templates)).unwrap();
 
     let running = Arc::new(AtomicBool::new(true));
 

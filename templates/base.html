@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}YTDL{% endblock title %}</title>
+    <link rel="stylesheet" href="/static/pure-min.css#1.0.1"
+        integrity="sha384-oAOxQR6DkCoMliIh8yFnu25d7Eq/PHS21PClpwjOTeU2jRSq11vu66rf90/cZr47">
+    <style>
+        .ytdl-navbar {
+            padding-bottom: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="ytdl-navbar pure-menu pure-menu-horizontal">
+        <span class="pure-menu-heading">YTDL</span>
+        <ul class="pure-menu-list">
+            <li class="pure-menu-item"><a href="/" class="pure-menu-link">Channels</a></li>
+            <li class="pure-menu-item"><a href="#" class="pure-menu-link">Add</a></li>
+        </ul>
+    </div>
+
+    {% block body %}{% endblock body %}
+</body>
+
+</html>
