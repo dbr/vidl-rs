@@ -146,6 +146,7 @@ fn config_logging(verbosity: u64) -> Result<()> {
 }
 
 fn main() -> Result<()> {
+    // Add channel subcommand
     let sc_add = SubCommand::with_name("add")
         .about("Add channel")
         .arg(Arg::with_name("chanid").required(true))
@@ -156,14 +157,19 @@ fn main() -> Result<()> {
                 .possible_values(&["youtube", "vimeo"])
                 .value_name("youtube|vimeo"),
         );
+
+    // Update subcommand
     let sc_update = SubCommand::with_name("update").about("Updates all added channel info");
 
+    // List subcommand
     let sc_list = SubCommand::with_name("list")
         .about("list channels/videos")
         .arg(Arg::with_name("id"));
 
+    // Web subcommand
     let sc_web = SubCommand::with_name("web").about("serve web interface");
 
+    // Main command
     let app = App::new("vidl")
         .subcommand(sc_add)
         .subcommand(sc_update)
@@ -177,6 +183,7 @@ fn main() -> Result<()> {
                 .global(true),
         );
 
+    // Parse
     let app_m = app.get_matches();
 
     // Logging levels
@@ -185,14 +192,18 @@ fn main() -> Result<()> {
 
     match app_m.subcommand() {
         ("add", Some(sub_m)) => add(
-            sub_m.value_of("chanid").unwrap(),
-            sub_m.value_of("service").unwrap(),
+            sub_m
+                .value_of("chanid")
+                .expect("required arg chanid missing"),
+            sub_m
+                .value_of("service")
+                .expect("required arg service missing"),
         )?,
         ("update", Some(_sub_m)) => update()?,
         ("list", Some(sub_m)) => list(sub_m.value_of("id"))?,
         ("web", Some(_sub_m)) => crate::web::serve()?,
         _ => {
-            eprintln!("Error: Unknown subcommand");
+            return Err(anyhow::anyhow!("Unknown subcommand"));
         }
     };
 
