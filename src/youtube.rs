@@ -1,111 +1,80 @@
 use anyhow::{Context, Result};
+use chrono::offset::TimeZone;
+
 use log::{debug, trace};
 
 use crate::common::{Service, YoutubeID};
-
-static API_KEY: &str = "AIzaSyA8kgtG0_B8QWejoVD12B4OVoPwHS6Ax44"; // VIDL public API browser key (for Youtube API v3)
 
 fn api_prefix() -> String {
     #[cfg(test)]
     let prefix: &str = &mockito::server_url();
 
     #[cfg(not(test))]
-    let prefix: &str = "https://www.googleapis.com";
+    let prefix: &str = "https://invidio.us";
 
     prefix.into()
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct YTChannelListResponse {
-    kind: String,
-    items: Vec<YTChannel>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-struct YTContentDetails {
-    related_playlists: YTRelatedPlaylists,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-struct YTRelatedPlaylists {
-    uploads: String,
-    watch_history: String,
-    watch_later: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-struct YTChannel {
-    id: String,
-    snippet: YTChannelSnippet,
-    content_details: YTContentDetails,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct YTChannelSnippet {
+/*
+[
+  {
     title: String,
+    videoId: String,
+    author: String,
+    authorId: String,
+    authorUrl: String,
+
+    videoThumbnails: [
+      {
+        quality: String,
+        url: String,
+        width: Int32,
+        height: Int32
+      }
+    ],
     description: String,
-    thumbnails: YTThumbnailList,
-}
+    descriptionHtml: String,
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct YTThumbnailList {
-    default: YTThumbnailInfo,
-    medium: YTThumbnailInfo,
-    high: YTThumbnailInfo,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct YTThumbnailInfo {
-    url: String,
-    width: u32,
-    height: u32,
-}
+    viewCount: Int64,
+    published: Int64,
+    publishedText: String,
+    lengthSeconds: Int32
+    paid: Bool,
+    premium: Bool
+  }
+]
+*/
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-struct YTPlaylistItemListResponse {
-    next_page_token: Option<String>,
-    page_info: YTPlaylistPageInfo,
-    items: Vec<YTPlaylistItem>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-struct YTPlaylistPageInfo {
-    total_results: u64,
-    results_per_page: u64,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-struct YTPlaylistItemSnippetResource {
-    kind: String,
+struct YTVideoInfo {
+    title: String,
     video_id: String,
+    video_thumbnails: Vec<YTThumbnailInfo>,
+    description: String,
+    length_seconds: i32,
+    paid: bool,
+    premium: bool,
+    published: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-struct YTPlaylistItemSnippet {
-    published_at: String,
-    title: String,
-    description: String,
-
-    thumbnails: YTThumbnailList,
-
-    channel_id: String,
-    channel_title: String,
-    playlist_id: String,
-
-    resource_id: YTPlaylistItemSnippetResource,
+struct YTThumbnailInfo {
+    quality: Option<String>,
+    url: String,
+    width: i32,
+    height: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct YTPlaylistItem {
-    id: String,
-    snippet: YTPlaylistItemSnippet,
+#[serde(rename_all = "camelCase")]
+struct YTChannelInfo {
+    author: String,
+    author_id: String,
+    description: String,
+    author_thumbnails: Vec<YTThumbnailInfo>,
+    author_banners: Vec<YTThumbnailInfo>,
 }
 
 /// Important info about channel
@@ -117,7 +86,6 @@ pub struct ChannelMetadata {
 }
 
 /// Important info about a video
-#[derive(Debug)]
 pub struct VideoInfo {
     pub id: String,
     pub url: String,
@@ -126,17 +94,14 @@ pub struct VideoInfo {
     pub thumbnail_url: String,
     pub published_at: chrono::DateTime<chrono::Utc>,
 }
-
-/// Helper to parse a `contentDetails` response from Youtube API
-fn parse_content_details(url: &str) -> Result<YTChannelListResponse> {
-    debug!("Retrieving URL {}", url);
-    let resp = attohttpc::get(url).send()?;
-    let text = resp.text()?;
-    trace!("Raw response: {}", &text);
-    let d: YTChannelListResponse = serde_json::from_str(&text)
-        .with_context(|| format!("Failed to parse response from {}", &url))?;
-    trace!("Raw deserialisation: {:?}", &d);
-    Ok(d)
+impl std::fmt::Debug for VideoInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "VideoInfo{{id: {:?}, title: {:?}, url: {:?}}}",
+            self.id, self.title, self.url
+        )
+    }
 }
 
 /// Object to query data about given channel
@@ -152,111 +117,75 @@ impl<'a> YoutubeQuery<'a> {
 
     pub fn get_metadata(&self) -> Result<ChannelMetadata> {
         let url = format!(
-            "{prefix}/youtube/v3/channels?key={apikey}&id={chanid}&part=snippet%2CcontentDetails",
+            "{prefix}/api/v1/channels/{chanid}",
             prefix = api_prefix(),
-            apikey = API_KEY,
             chanid = self.chan_id.id
         );
-        let d = parse_content_details(&url)?;
 
-        let chan = d.items.first().clone().context("Missing channel info")?;
-        let cs = &chan.snippet;
+        debug!("Retrieving URL {}", &url);
+        let resp = attohttpc::get(&url).send()?;
+        let text = resp.text()?;
+        trace!("Raw response: {}", &text);
+        let d: YTChannelInfo = serde_json::from_str(&text)
+            .with_context(|| format!("Failed to parse response from {}", &url))?;
+        trace!("Raw deserialisation: {:?}", &d);
 
         Ok(ChannelMetadata {
-            title: cs.title.clone(),
-            thumbnail: cs.thumbnails.default.url.clone(),
-            description: cs.description.clone(),
+            title: d.author.clone(),
+            thumbnail: d.author_thumbnails[0].url.clone(),
+            description: d.description.clone(),
         })
     }
 
-    pub fn videos<'i>(&'i self) -> Result<impl Iterator<Item = Vec<VideoInfo>> + 'i> {
-        // By ID:
-        // https://www.googleapis.com/youtube/v3/channels?key={apikey}&id={chanid}&part=contentDetails
-        // Or username:
-        // https://www.googleapis.com/youtube/v3/channels?key={apikey}&forUsername={chanid}&part=contentDetails
-        let url = format!(
-            "{prefix}/youtube/v3/channels?key={apikey}&id={chanid}&part=snippet%2CcontentDetails",
-            prefix = api_prefix(),
-            apikey = API_KEY,
-            chanid = self.chan_id.id
-        );
-        let d = parse_content_details(&url)?;
+    pub fn videos<'i>(&'i self) -> impl Iterator<Item = Result<Vec<VideoInfo>>> + 'i {
+        // GET /api/v1/channels/:ucid/videos?page=1
 
-        let chan = d.items.first().clone().context("Missing channel info")?;
-        let cd = chan.content_details.clone();
-        let playlist_id = cd.related_playlists.uploads;
+        fn get_page(chanid: &str, page: i32) -> Result<Vec<VideoInfo>> {
+            let url = format!(
+                "{prefix}/api/v1/channels/videos/{chanid}?page={page}",
+                prefix = api_prefix(),
+                chanid = chanid,
+                page = page,
+            );
 
-        let mut page_token: Option<String> = None;
-        let mut complete = false;
-        let it = std::iter::from_fn(move || {
-            // If no more pages of video, stop
-            if complete {
-                return None;
-            }
+            debug!("Retrieving URL {}", &url);
+            let resp = attohttpc::get(&url).send()?;
+            let text = resp.text().unwrap();
+            trace!("Raw response: {}", &text);
+            let data: Vec<YTVideoInfo> = serde_json::from_str(&text)
+                .with_context(|| format!("Failed to parse response from {}", &url))?;
+            trace!("Raw deserialisation: {:?}", &data);
 
-            // Get current page of videos
-            let pl = self
-                .get_playlist(&playlist_id, page_token.as_deref())
-                .unwrap();
-
-            // Store next page token for next iteration
-            page_token = pl.next_page_token.clone();
-
-            // If no next page token, store this info for next iteration
-            if page_token.is_none() {
-                complete = true;
-            }
-
-            // Videos to return
-            let data: Vec<VideoInfo> = pl
-                .items
+            let ret: Vec<VideoInfo> = data
                 .iter()
                 .map(|d| VideoInfo {
-                    id: d.id.clone(),
-                    url: format!(
-                        "http://youtube.com/watch?v={id}",
-                        id = d.snippet.resource_id.video_id
-                    ),
-                    title: d.snippet.title.clone(),
-                    description: d.snippet.description.clone(),
-                    thumbnail_url: d.snippet.thumbnails.default.url.clone(),
-                    published_at: d
-                        .snippet
-                        .published_at
-                        .parse::<chrono::DateTime<chrono::Utc>>()
-                        .unwrap(),
+                    id: d.video_id.clone(),
+                    url: format!("http://youtube.com/watch?v={id}", id = d.video_id),
+                    title: d.title.clone(),
+                    description: d.description.clone(),
+                    thumbnail_url: d.video_thumbnails.first().unwrap().url.clone(),
+                    published_at: chrono::Utc.timestamp(d.published, 0),
                 })
                 .collect();
+
+            Ok(ret)
+        }
+
+        let mut page_num = 1;
+
+        let it = std::iter::from_fn(move || {
+            // Get current page of videos
+            let data: Result<Vec<VideoInfo>> = get_page(&self.chan_id.id, page_num);
+            // Stop if no videos found on page
+            if let Ok(ref d) = data {
+                if d.len() == 0 {
+                    return None;
+                }
+            };
+            page_num += 1;
             Some(data)
         });
-        Ok(it)
-    }
-
-    fn get_playlist(
-        &self,
-        playlist_id: &str,
-        page_token: Option<&str>,
-    ) -> Result<YTPlaylistItemListResponse> {
-        // If no page token specified, start at beginning
-        let pt = match page_token {
-            None => "".into(),
-            Some(val) => format!("&pageToken={}", val),
-        };
-
-        let url = format!("{prefix}/youtube/v3/playlistItems?key={apikey}&part=snippet&maxResults={num}&playlistId={playlist}{page}",
-            prefix = api_prefix(),
-            apikey=API_KEY,
-            num=50,
-            playlist=playlist_id,
-            page=pt
-        );
-        debug!("Retrieving URL {:?}", &url);
-
-        let resp = attohttpc::get(&url).send()?;
-        let text = resp.text()?;
-        let d: YTPlaylistItemListResponse = serde_json::from_str(&text)
-            .with_context(|| format!("Failed to parse response from URL {}", url))?;
-        Ok(d)
+        it
     }
 }
 
@@ -267,38 +196,20 @@ pub fn find_channel_id(name: &str, service: &Service) -> Result<ChannelID> {
         Service::Youtube => {
             debug!("Looking up by username");
             let url = format!(
-                "{prefix}/youtube/v3/channels?key={apikey}&forUsername={name}&part=snippet%2CcontentDetails",
+                "{prefix}/api/v1/channels/{name}",
                 prefix = api_prefix(),
-                apikey=API_KEY,
-                name=name);
-            let d = parse_content_details(&url)?;
+                name = name
+            );
 
-            if let Some(f) = d.items.first() {
-                debug!("Found channel by username");
-                Ok(ChannelID::Youtube(YoutubeID {
-                    id: f.id.clone().into(),
-                }))
-            } else {
-                debug!("Looking up by channel ID");
-                let url = format!(
-                    "{prefix}/youtube/v3/channels?key={apikey}&id={name}&part=snippet%2CcontentDetails",
-                    prefix = api_prefix(),
-                    apikey=API_KEY,
-                    name=name);
-                let d = parse_content_details(&url)?;
+            debug!("Retrieving URL {}", &url);
+            let resp = attohttpc::get(&url).send()?;
+            let text = resp.text().unwrap();
+            trace!("Raw response: {}", &text);
+            let data: YTChannelInfo = serde_json::from_str(&text)
+                .with_context(|| format!("Failed to parse response from {}", &url))?;
+            trace!("Raw deserialisation: {:?}", &data);
 
-                if let Some(f) = d.items.first() {
-                    debug!("Found channel by ID");
-                    Ok(ChannelID::Youtube(YoutubeID {
-                        id: f.id.clone().into(),
-                    }))
-                } else {
-                    Err(anyhow::anyhow!(
-                        "Could not find channel {} by username nor ID",
-                        name
-                    ))
-                }
-            }
+            Ok(ChannelID::Youtube(YoutubeID { id: data.author_id }))
         }
         Service::Vimeo => Err(anyhow::anyhow!("Not yet implemented!")), // FIXME: This method belongs outside of youtube.rs
     }
@@ -352,8 +263,13 @@ mod test {
             id: "UCzH3iADRIq1IJlIXjfNgTpA".into(),
         };
         let yt = YoutubeQuery::new(&cid);
-        let vids = yt.videos()?;
-        let result: Vec<super::VideoInfo> = vids.flatten().take(3).collect();
+        let vids = yt.videos();
+        let result: Vec<super::VideoInfo> = vids
+            .into_iter()
+            .map(|x| x.unwrap())
+            .flatten()
+            .take(3)
+            .collect();
         assert_eq!(result[0].title, "CAN WE LEARN TO DRIVE STICK? | RT Life");
         assert_eq!(
             result[1].title,

@@ -36,19 +36,22 @@ fn update() -> Result<()> {
         };
 
         let yt = crate::youtube::YoutubeQuery::new(&chanid);
-        let videos = yt.videos()?;
+        let videos = yt.videos();
 
         let newest_video = chan.latest_video(&db)?;
-        for v in videos.flatten() {
-            if let Some(ref newest) = newest_video {
-                if v.published_at <= newest.published_at {
-                    // Stop adding videos once we've seen one as-new
-                    debug!("Video {:?} already seen", &v);
-                    break;
+        'outer: for page in videos {
+            let page = page?;
+            for v in page {
+                if let Some(ref newest) = newest_video {
+                    if v.published_at <= newest.published_at {
+                        // Stop adding videos once we've seen one as-new
+                        debug!("Already seen video Video {:?}", &v);
+                        break 'outer;
+                    }
                 }
+                chan.add_video(&db, &v)?;
+                debug!("Added {0}", v.title);
             }
-            chan.add_video(&db, &v)?;
-            debug!("Added {0}", v.title);
         }
     }
 
@@ -87,8 +90,8 @@ fn list(chan_num: Option<&str>) -> Result<()> {
             if &format!("{}", c.id) == chan_num {
                 for v in c.all_videos(&db)? {
                     println!(
-                        "Title: {}\nURL: {}\nPublished: {}\nThumbnail: {}\nDescription: {}\n----",
-                        v.title, v.url, v.published_at, v.thumbnail_url, v.description
+                        "ID: {}\nTitle: {}\nURL: {}\nPublished: {}\nThumbnail: {}\nDescription: {}\n----",
+                        v.id, v.title, v.url, v.published_at, v.thumbnail_url, v.description
                     );
                 }
             }
