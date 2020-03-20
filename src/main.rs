@@ -12,6 +12,7 @@ use clap::{App, Arg, SubCommand};
 mod common;
 mod config;
 mod db;
+mod download;
 mod web;
 mod youtube;
 
@@ -170,12 +171,16 @@ fn main() -> Result<()> {
     // Web subcommand
     let sc_web = SubCommand::with_name("web").about("serve web interface");
 
+    // Download subcommand
+    let sc_download = SubCommand::with_name("download").about("enqueues videos for download");
+
     // Main command
     let app = App::new("vidl")
         .subcommand(sc_add)
         .subcommand(sc_update)
         .subcommand(sc_list)
         .subcommand(sc_web)
+        .subcommand(sc_download)
         .arg(
             Arg::with_name("verbose")
                 .short("v")
@@ -203,8 +208,9 @@ fn main() -> Result<()> {
         ("update", Some(_sub_m)) => update()?,
         ("list", Some(sub_m)) => list(sub_m.value_of("id"))?,
         ("web", Some(_sub_m)) => crate::web::serve()?,
+        ("download", Some(_sub_m)) => crate::download::main()?,
         _ => {
-            return Err(anyhow::anyhow!("Unknown subcommand"));
+            return Err(anyhow::anyhow!("Unhandled subcommand"));
         }
     };
 
