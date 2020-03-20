@@ -137,7 +137,7 @@ impl<'a> YoutubeQuery<'a> {
         })
     }
 
-    pub fn videos<'i>(&'i self) -> impl Iterator<Item = Result<Vec<VideoInfo>>> + 'i {
+    pub fn videos<'i>(&'i self) -> impl Iterator<Item = Result<VideoInfo>> + 'i {
         // GET /api/v1/channels/:ucid/videos?page=1
 
         fn get_page(chanid: &str, page: i32) -> Result<Vec<VideoInfo>> {
@@ -172,18 +172,32 @@ impl<'a> YoutubeQuery<'a> {
         }
 
         let mut page_num = 1;
+        let mut current_items: Vec<VideoInfo> = vec![];
 
-        let it = std::iter::from_fn(move || {
-            // Get current page of videos
-            let data: Result<Vec<VideoInfo>> = get_page(&self.chan_id.id, page_num);
-            // Stop if no videos found on page
-            if let Ok(ref d) = data {
-                if d.len() == 0 {
-                    return None;
-                }
-            };
-            page_num += 1;
-            Some(data)
+        let it = std::iter::from_fn(move || -> Option<Result<VideoInfo>> {
+            if let Some(cur) = current_items.pop() {
+                // Iterate through previously stored items
+                Some(Ok(cur))
+            } else {
+                // If nothing is stored, get next page of videos
+                let data: Result<Vec<VideoInfo>> = get_page(&self.chan_id.id, page_num);
+                page_num += 1; // Increment for future
+
+                let nextup: Option<Result<VideoInfo>> = match data {
+                    // Something went wrong, return an error item
+                    Err(e) => Some(Err(e)),
+                    Ok(new_items) => {
+                        if new_items.len() == 0 {
+                            // No more items, stop iterator
+                            None
+                        } else {
+                            current_items.extend(new_items);
+                            Some(Ok(current_items.pop().unwrap()))
+                        }
+                    }
+                };
+                nextup
+            }
         });
         it
     }
@@ -266,10 +280,8 @@ mod test {
         let vids = yt.videos();
         let result: Vec<super::VideoInfo> = vids
             .into_iter()
-            .map(|x| x.unwrap())
-            .flatten()
             .take(3)
-            .collect();
+            .collect::<Result<Vec<super::VideoInfo>>>()?;
         assert_eq!(result[0].title, "CAN WE LEARN TO DRIVE STICK? | RT Life");
         assert_eq!(
             result[1].title,

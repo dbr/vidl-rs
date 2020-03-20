@@ -39,19 +39,17 @@ fn update() -> Result<()> {
         let videos = yt.videos();
 
         let newest_video = chan.latest_video(&db)?;
-        'outer: for page in videos {
-            let page = page?;
-            for v in page {
-                if let Some(ref newest) = newest_video {
-                    if v.published_at <= newest.published_at {
-                        // Stop adding videos once we've seen one as-new
-                        debug!("Already seen video Video {:?}", &v);
-                        break 'outer;
-                    }
+        for v in videos {
+            let v = v?;
+            if let Some(ref newest) = newest_video {
+                if v.published_at <= newest.published_at {
+                    // Stop adding videos once we've seen one as-new
+                    debug!("Already seen video Video {:?}", &v);
+                    break;
                 }
-                chan.add_video(&db, &v)?;
-                debug!("Added {0}", v.title);
             }
+            chan.add_video(&db, &v)?;
+            debug!("Added {0}", v.title);
         }
     }
 
