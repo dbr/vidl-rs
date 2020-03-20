@@ -172,10 +172,11 @@ impl<'a> YoutubeQuery<'a> {
         }
 
         let mut page_num = 1;
-        let mut current_items: Vec<VideoInfo> = vec![];
+        use std::collections::VecDeque;
+        let mut current_items: VecDeque<VideoInfo> = VecDeque::new();
 
         let it = std::iter::from_fn(move || -> Option<Result<VideoInfo>> {
-            if let Some(cur) = current_items.pop() {
+            if let Some(cur) = current_items.pop_front() {
                 // Iterate through previously stored items
                 Some(Ok(cur))
             } else {
@@ -192,7 +193,7 @@ impl<'a> YoutubeQuery<'a> {
                             None
                         } else {
                             current_items.extend(new_items);
-                            Some(Ok(current_items.pop().unwrap()))
+                            Some(Ok(current_items.pop_front().unwrap()))
                         }
                     }
                 };
@@ -235,30 +236,19 @@ mod test {
 
     #[test]
     fn test_basic_find() -> Result<()> {
-        // FIXME: Mock HTTP responses
-        let _m = mockito::mock(
-            "GET",
-            "/youtube/v3/channels?key=AIzaSyA8kgtG0_B8QWejoVD12B4OVoPwHS6Ax44&forUsername=roosterteeth&part=snippet%2CcontentDetails")
-            .with_body_from_file("testdata/channel_rt.json")
-           .create();
-        let _m2 = mockito::mock(
-            "GET",
-            "/youtube/v3/channels?key=AIzaSyA8kgtG0_B8QWejoVD12B4OVoPwHS6Ax44&forUsername=UCzH3iADRIq1IJlIXjfNgTpA&part=snippet%2CcontentDetails"
-            ).with_body_from_file("testdata/channel_rt_with_wrong_username.json")
+        let _m1 = mockito::mock("GET", "/api/v1/channels/thegreatsd")
+            .with_body_from_file("testdata/channel_thegreatsd.json")
             .create();
-        let _m3 = mockito::mock(
-            "GET",
-            "/youtube/v3/channels?key=AIzaSyA8kgtG0_B8QWejoVD12B4OVoPwHS6Ax44&id=UCzH3iADRIq1IJlIXjfNgTpA&part=snippet%2CcontentDetails"
-        )
-            .with_body_from_file("testdata/channel_rt.json")
+        let _m2 = mockito::mock("GET", "/api/v1/channels/UCUBfKCp83QT19JCUekEdxOQ")
+            .with_body_from_file("testdata/channel_thegreatsd.json") // Same content
             .create();
 
-        let c = find_channel_id("roosterteeth", &crate::common::Service::Youtube)?;
-        assert_eq!(c.id_str(), "UCzH3iADRIq1IJlIXjfNgTpA");
+        let c = find_channel_id("thegreatsd", &crate::common::Service::Youtube)?;
+        assert_eq!(c.id_str(), "UCUBfKCp83QT19JCUekEdxOQ");
         assert_eq!(c.service(), crate::common::Service::Youtube);
 
         // Check same `ChannelID` is found by ID as by username
-        let by_id = find_channel_id("UCzH3iADRIq1IJlIXjfNgTpA", &crate::common::Service::Youtube)?;
+        let by_id = find_channel_id("UCUBfKCp83QT19JCUekEdxOQ", &crate::common::Service::Youtube)?;
         assert_eq!(by_id, c);
 
         Ok(())
@@ -266,47 +256,55 @@ mod test {
 
     #[test]
     fn test_video_list() -> Result<()> {
-        let _m = mockito::mock("GET", "/youtube/v3/channels?key=AIzaSyA8kgtG0_B8QWejoVD12B4OVoPwHS6Ax44&id=UCzH3iADRIq1IJlIXjfNgTpA&part=snippet%2CcontentDetails")
-            .with_body_from_file("testdata/channel_rt.json")
-           .create();
+        let mock_p1 = mockito::mock(
+            "GET",
+            "/api/v1/channels/videos/UCOYYX1Ucvx87A7CSy5M99yw?page=1",
+        )
+        .with_body_from_file("testdata/channel_climb_page1.json")
+        .create();
 
-        let _m2 = mockito::mock("GET", "/youtube/v3/playlistItems?key=AIzaSyA8kgtG0_B8QWejoVD12B4OVoPwHS6Ax44&part=snippet&maxResults=50&playlistId=UUzH3iADRIq1IJlIXjfNgTpA")
-            .with_body_from_file("testdata/playlist_rt.json")
-            .create();
+        let mock_p2 = mockito::mock(
+            "GET",
+            "/api/v1/channels/videos/UCOYYX1Ucvx87A7CSy5M99yw?page=2",
+        )
+        .with_body_from_file("testdata/channel_climb_page2.json")
+        .create();
+
         let cid = crate::common::YoutubeID {
-            id: "UCzH3iADRIq1IJlIXjfNgTpA".into(),
+            id: "UCOYYX1Ucvx87A7CSy5M99yw".into(),
         };
         let yt = YoutubeQuery::new(&cid);
         let vids = yt.videos();
         let result: Vec<super::VideoInfo> = vids
             .into_iter()
+            .skip(58) // 60 videos per page, want to breach boundry
             .take(3)
             .collect::<Result<Vec<super::VideoInfo>>>()?;
-        assert_eq!(result[0].title, "CAN WE LEARN TO DRIVE STICK? | RT Life");
-        assert_eq!(
-            result[1].title,
-            "Pancake Podcast 2020 - Ep. #585  - RT Podcast"
-        );
+        assert_eq!(result[0].title, "Vlog 013 - Excommunication");
+        assert_eq!(result[1].title, "Vlog 012 - Only in America!");
         assert_eq!(
             result[2].title,
-            "Sleepy Plane Stories - Rooster Teeth Animated Adventures"
+            "Vlog 011 - The part of the house no-one ever sees!"
         );
         dbg!(result);
+
+        mock_p1.expect(1);
+        mock_p2.expect(1);
         Ok(())
     }
 
     #[test]
     fn test_metadata() -> Result<()> {
-        let _m = mockito::mock("GET", "/youtube/v3/channels?key=AIzaSyA8kgtG0_B8QWejoVD12B4OVoPwHS6Ax44&id=UCzH3iADRIq1IJlIXjfNgTpA&part=snippet%2CcontentDetails")
-            .with_body_from_file("testdata/channel_rt.json")
+        let _m1 = mockito::mock("GET", "/api/v1/channels/UCUBfKCp83QT19JCUekEdxOQ")
+            .with_body_from_file("testdata/channel_thegreatsd.json")
             .create();
 
         let cid = crate::common::YoutubeID {
-            id: "UCzH3iADRIq1IJlIXjfNgTpA".into(),
+            id: "UCUBfKCp83QT19JCUekEdxOQ".into(),
         };
         let yt = YoutubeQuery::new(&cid);
         let meta = yt.get_metadata()?;
-        assert_eq!(meta.title, "Rooster Teeth");
+        assert_eq!(meta.title, "thegreatsd");
         Ok(())
     }
 }
