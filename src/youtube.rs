@@ -173,9 +173,13 @@ impl<'a> YoutubeQuery<'a> {
 
         let mut page_num = 1;
         use std::collections::VecDeque;
+        let mut completed = false;
         let mut current_items: VecDeque<VideoInfo> = VecDeque::new();
 
         let it = std::iter::from_fn(move || -> Option<Result<VideoInfo>> {
+            if completed {
+                return None;
+            }
             if let Some(cur) = current_items.pop_front() {
                 // Iterate through previously stored items
                 Some(Ok(cur))
@@ -186,7 +190,12 @@ impl<'a> YoutubeQuery<'a> {
 
                 let nextup: Option<Result<VideoInfo>> = match data {
                     // Something went wrong, return an error item
-                    Err(e) => Some(Err(e)),
+                    Err(e) => {
+                        // Error state, prevent future iteration
+                        completed = true;
+                        // Return error
+                        Some(Err(e))
+                    }
                     Ok(new_items) => {
                         if new_items.len() == 0 {
                             // No more items, stop iterator
@@ -290,6 +299,26 @@ mod test {
 
         mock_p1.expect(1);
         mock_p2.expect(1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_video_list_error() -> Result<()> {
+        let mock_p1 = mockito::mock(
+            "GET",
+            "/api/v1/channels/videos/UCOYYX1Ucvx87A7CSy5M99yw?page=1",
+        )
+        .with_body("garbagenonsense")
+        .create();
+
+        let cid = crate::common::YoutubeID {
+            id: "UCOYYX1Ucvx87A7CSy5M99yw".into(),
+        };
+        let yt = YoutubeQuery::new(&cid);
+        let mut vids = yt.videos();
+        assert!(vids.next().unwrap().is_err());
+        mock_p1.expect(1);
+        assert!(vids.next().is_none());
         Ok(())
     }
 
