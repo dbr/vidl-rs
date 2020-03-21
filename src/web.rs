@@ -9,8 +9,7 @@ use serde_derive::Serialize;
 use tera::Tera;
 
 use crate::config::Config;
-use crate::db::Channel;
-use crate::youtube::VideoInfo;
+use crate::db::{Channel, DBVideoInfo};
 
 #[derive(Debug, Serialize)]
 pub struct WebChannel {
@@ -47,7 +46,8 @@ impl From<Vec<Channel>> for WebChannelList {
 
 #[derive(Debug, Serialize)]
 pub struct WebVideoInfo {
-    id: String,
+    id: i64,
+    video_id: String,
     url: String,
     title: String,
     description: String,
@@ -55,15 +55,16 @@ pub struct WebVideoInfo {
     published_at: String,
 }
 
-impl From<VideoInfo> for WebVideoInfo {
-    fn from(src: VideoInfo) -> WebVideoInfo {
+impl From<DBVideoInfo> for WebVideoInfo {
+    fn from(src: DBVideoInfo) -> WebVideoInfo {
         WebVideoInfo {
             id: src.id,
-            url: src.url,
-            title: src.title,
-            description: src.description,
-            thumbnail_url: src.thumbnail_url,
-            published_at: src.published_at.to_rfc3339(),
+            video_id: src.info.id,
+            url: src.info.url,
+            title: src.info.title,
+            description: src.info.description,
+            thumbnail_url: src.info.thumbnail_url,
+            published_at: src.info.published_at.to_rfc3339(),
         }
     }
 }
@@ -93,7 +94,7 @@ fn web_channel(id: i64) -> Result<Response> {
     let db = crate::db::Database::open(&cfg)?;
 
     let c = crate::db::Channel::get_by_sqlid(&db, id)?;
-    let videos = c.all_videos(&db)?;
+    let videos = c.all_videos(&db, 50, 0)?;
 
     let ret = WebChannelVideos {
         channel: c.into(),
@@ -114,11 +115,11 @@ fn page_chan_list(templates: &Tera) -> Result<Response> {
     Ok(Response::html(t))
 }
 
-fn page_list_videos(id: i64, templates: &Tera) -> Result<Response> {
+fn page_list_videos(id: i64, page: i64, templates: &Tera) -> Result<Response> {
     let cfg = crate::config::Config::load();
     let db = crate::db::Database::open(&cfg)?;
     let c = crate::db::Channel::get_by_sqlid(&db, id)?;
-    let videos = c.all_videos(&db)?;
+    let videos = c.all_videos(&db, 50, page)?;
 
     let ret = WebChannelVideos {
         channel: c.into(),
@@ -127,6 +128,7 @@ fn page_list_videos(id: i64, templates: &Tera) -> Result<Response> {
 
     let mut ctx = tera::Context::new();
     ctx.insert("videos", &ret);
+    ctx.insert("page", &page);
     let t = templates.render("video_list.html", &ctx).unwrap();
 
     Ok(Response::html(t))
@@ -155,7 +157,8 @@ fn handle_response(request: &Request, templates: &Tera) -> Response {
             page_chan_list(&templates)
         },
         (GET) ["/channel/{chanid}", chanid: i64] => {
-            page_list_videos(chanid, &templates)
+            let page: i64 = request.get_param("page").and_then(|x| x.parse::<i64>().ok()).unwrap_or(0);
+            page_list_videos(chanid, page, &templates)
         },
 
         (GET) ["/youtube/"] => {
@@ -197,7 +200,7 @@ fn handle_response(request: &Request, templates: &Tera) -> Response {
     );
     match resp {
         Ok(r) => r,
-        Err(_) => Response::text("Internal service error").with_status_code(500),
+        Err(e) => Response::text(&format!("Internal service error: {:?}", e)).with_status_code(500),
     }
 }
 

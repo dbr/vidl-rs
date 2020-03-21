@@ -43,7 +43,7 @@ fn update() -> Result<()> {
         for v in videos {
             let v = v?;
             if let Some(ref newest) = newest_video {
-                if v.published_at <= newest.published_at {
+                if v.published_at <= newest.info.published_at {
                     // Stop adding videos once we've seen one as-new
                     debug!("Already seen video Video {:?}", &v);
                     break;
@@ -87,7 +87,8 @@ fn list(chan_num: Option<&str>) -> Result<()> {
         let channels = crate::db::list_channels(&db)?;
         for c in channels {
             if &format!("{}", c.id) == chan_num {
-                for v in c.all_videos(&db)? {
+                for v in c.all_videos(&db, 50, 0)? {
+                    let v = v.info;
                     println!(
                         "ID: {}\nTitle: {}\nURL: {}\nPublished: {}\nThumbnail: {}\nDescription: {}\n----",
                         v.id, v.title, v.url, v.published_at, v.thumbnail_url, v.description

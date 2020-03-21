@@ -1,64 +1,75 @@
 {% extends "base.html" %}
 {%block body%}
 
-<table class="pure-table pure-table-horizontal" style="margin-left: auto; margin-right: auto;">
-    {% for c in videos['videos'] %}
-    <tr class="ytdl-new">
-        <td>
-            <div class="ytdl-videoinfo" style="width: 100%; height: 100%;">
-                <img src="{{c.thumbnail_url}}" width=32 style="float: left; padding: 4px; vertical-align: baseline;">
-                <a href="#">
-                    <div style="padding: 4px">
-                        {{c.title}}
-                        <br />
-                        <small>{{c.published_at}}</small>
-                    </div>
-                </a>
-            </div>
-        </td>
-        <td>
-            <a href="{{c.url}}" class="pure-button button-info">View</a>
-        </td>
-        <td>
-            <a href="#" class="pure-button button-warning">Ignore</a>
-        </td>
-    </tr>
-    {% endfor %}
-    </div>
+<div id="content">
+    <a href="?page={{page-1}}" class="pure-button">Prev page</a>
+    <a href="?page={{page+1}}" class="pure-button">Next page</a>
 
-    <style>
-        a {
-            color: black;
-            text-decoration: none;
-        }
+    <table class="pure-table pure-table-horizontal">
+        {% for c in videos['videos'] %}
+        <tr class="ytdl-new">
+            <td>
+                <div class="ytdl-videoinfo" style="width: 100%; height: 100%;">
+                    <!-- <img src="{{c.thumbnail_url}}" width=32 style="float: left; padding: 4px; vertical-align: baseline;"> -->
+                    <a href="#">
+                        <div style="padding: 4px">
+                            {{c.title}}
+                            <br />
+                            <small>{{c.published_at}}</small>
+                        </div>
+                    </a>
+                </div>
+            </td>
+            <td>
+                <a href="{{c.url}}" class="pure-button button-info">View</a>
+            </td>
+            <td>
+                <a href="#" class="pure-button button-warning">Ignore</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
 
-        .ytdl-videoinfo {
-            font-size: 1.5em;
-        }
+<style>
+    a {
+        color: black;
+        text-decoration: none;
+    }
 
-        .button-info {
-            background: rgb(182, 212, 247);
-        }
+    .ytdl-videoinfo {
+        font-size: 1.5em;
+    }
 
-        .button-warning {
-            background: rgb(223, 117, 20);
-        }
+    .button-info {
+        background: rgb(182, 212, 247);
+    }
 
-        .ytdl-viewed {
-            background: rgb(123, 223, 110);
-        }
+    .button-warning {
+        background: rgb(223, 117, 20);
+    }
 
-        .ytdl-new {
-            background: rgb(110, 159, 223);
-        }
+    .ytdl-viewed {
+        background: rgb(123, 223, 110);
+    }
 
-        .ytdl-downloading,
-        .ytdl-queued {
-            background: rgb(207, 146, 66);
-        }
+    .ytdl-new {
+        background: rgb(110, 159, 223);
+    }
 
-        .ytdl-ignored {
-            background: rgb(129, 129, 129);
-        }
-    </style>
-    {%endblock%}
+    .ytdl-downloading,
+    .ytdl-queued {
+        background: rgb(207, 146, 66);
+    }
+
+    .ytdl-ignored {
+        background: rgb(129, 129, 129);
+    }
+
+    #content {
+        width: 800px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+</style>
+{%endblock%}

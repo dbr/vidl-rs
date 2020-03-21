@@ -7,6 +7,13 @@ use crate::common::{ChannelID, Service};
 use crate::config::Config;
 use crate::youtube::VideoInfo;
 
+#[derive(Debug)]
+/// `VideoInfo` but with an SQL ID
+pub struct DBVideoInfo {
+    pub id: i64,
+    pub info: VideoInfo,
+}
+
 /// Wraps connection to a database
 pub struct Database {
     pub conn: Connection,
@@ -28,9 +35,9 @@ impl Database {
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS video (
-                      internalid    INTEGER PRIMARY KEY AUTOINCREMENT,
+                      id            INTEGER PRIMARY KEY AUTOINCREMENT,
                       channel       INTEGER NOT NULL,
-                      id            TEXT NOT NULL,
+                      video_id      TEXT NOT NULL,
                       url           TEXT NOT NULL,
                       title         TEXT NOT NULL,
                       description   TEXT NOT NULL,
@@ -176,7 +183,7 @@ impl Channel {
     pub fn add_video(&self, db: &Database, video: &VideoInfo) -> Result<()> {
         db.conn
             .execute(
-                "INSERT INTO video (channel, id, url, title, description, thumbnail, published_at)
+                "INSERT INTO video (channel, video_id, url, title, description, thumbnail, published_at)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 params![
                     self.id,
@@ -194,21 +201,24 @@ impl Channel {
     }
 
     /// Return the most recently published video
-    pub fn latest_video(&self, db: &Database) -> Result<Option<VideoInfo>> {
-        let v: Result<VideoInfo, rusqlite::Error> = db.conn.query_row(
-            "SELECT id, url, title, description, thumbnail, published_at FROM video
+    pub fn latest_video(&self, db: &Database) -> Result<Option<DBVideoInfo>> {
+        let v: Result<DBVideoInfo, rusqlite::Error> = db.conn.query_row(
+            "SELECT id, video_id, url, title, description, thumbnail, published_at FROM video
                 WHERE channel=?1
                 ORDER BY published_at DESC
                 LIMIT 1",
             params![self.id],
             |row| {
-                Ok(VideoInfo {
+                Ok(DBVideoInfo {
                     id: row.get(0)?,
-                    url: row.get(1)?,
-                    title: row.get(2)?,
-                    description: row.get(3)?,
-                    thumbnail_url: row.get(4)?,
-                    published_at: row.get(5)?,
+                    info: VideoInfo {
+                        id: row.get(1)?,
+                        url: row.get(2)?,
+                        title: row.get(3)?,
+                        description: row.get(4)?,
+                        thumbnail_url: row.get(5)?,
+                        published_at: row.get(6)?,
+                    },
                 })
             },
         );
@@ -223,24 +233,34 @@ impl Channel {
         }
     }
 
-    pub fn all_videos(&self, db: &Database) -> Result<Vec<VideoInfo>> {
-        let mut stmt = db.conn.prepare(
-            "SELECT id, url, title, description, thumbnail, published_at FROM video
-            WHERE channel=?1
-            ORDER BY published_at DESC",
-        )?;
-        let chaniter = stmt.query_map(params![self.id], |row| {
-            Ok(VideoInfo {
+    pub fn all_videos(&self, db: &Database, limit: i64, page: i64) -> Result<Vec<DBVideoInfo>> {
+        let mapper = |row: &rusqlite::Row| {
+            Ok(DBVideoInfo {
                 id: row.get(0)?,
-                url: row.get(1)?,
-                title: row.get(2)?,
-                description: row.get(3)?,
-                thumbnail_url: row.get(4)?,
-                published_at: row.get(5)?,
+                info: VideoInfo {
+                    id: row.get(1)?,
+                    url: row.get(2)?,
+                    title: row.get(3)?,
+                    description: row.get(4)?,
+                    thumbnail_url: row.get(5)?,
+                    published_at: row.get(6)?,
+                },
             })
-        })?;
-        let mut ret = vec![];
-        for r in chaniter {
+        };
+
+        let mut ret: Vec<DBVideoInfo> = vec![];
+
+        let mut q = db.conn.prepare(
+            "SELECT id, video_id, url, title, description, thumbnail, published_at
+                FROM video
+                WHERE channel=?1
+                ORDER BY published_at DESC
+                LIMIT ?2
+                OFFSET ?3
+                ",
+        )?;
+        let mapped = q.query_map(params![self.id, limit, page * limit], mapper)?;
+        for r in mapped {
             ret.push(r?);
         }
         Ok(ret)
@@ -307,7 +327,7 @@ mod tests {
 
         // Check no videos exist
         {
-            let vids = c.all_videos(&mdb)?;
+            let vids = c.all_videos(&mdb, 50, 0)?;
             assert_eq!(vids.len(), 0);
         }
 
@@ -335,15 +355,16 @@ mod tests {
 
         // Check video now exists
         {
-            let vids = c.all_videos(&mdb)?;
+            let vids = c.all_videos(&mdb, 50, 0)?;
             assert_eq!(vids.len(), 1);
-            assert_eq!(vids[0].id, "an id");
-            assert_eq!(vids[0].url, "http://example.com/watch?v=abc123");
-            assert_eq!(vids[0].title, "A title!");
-            assert_eq!(vids[0].description, "A ficticious video.\nIt is quite good");
-            assert_eq!(vids[0].thumbnail_url, "http://example.com/vidthumb.jpg");
+            let first = &vids[0].info;
+            assert_eq!(first.id, "an id");
+            assert_eq!(first.url, "http://example.com/watch?v=abc123");
+            assert_eq!(first.title, "A title!");
+            assert_eq!(first.description, "A ficticious video.\nIt is quite good");
+            assert_eq!(first.thumbnail_url, "http://example.com/vidthumb.jpg");
             assert_eq!(
-                vids[0].published_at,
+                first.published_at,
                 chrono::DateTime::parse_from_rfc3339("2001-12-30T16:39:57Z")?
                     .with_timezone(&chrono::Utc)
             )
@@ -369,7 +390,7 @@ mod tests {
         {
             let latest = c.latest_video(&mdb)?;
             assert!(latest.is_some());
-            assert_eq!(latest.unwrap().id, "an id");
+            assert_eq!(latest.unwrap().info.id, "an id");
         }
         Ok(())
     }

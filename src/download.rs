@@ -42,7 +42,7 @@ pub fn main() -> Result<()> {
         if &format!("{}", c.id) == chan_num {
             let v = c.latest_video(&db)?.unwrap();
             println!("{:?}", &v);
-            download(&v)?;
+            download(&v.info)?;
         }
     }
     Ok(())
