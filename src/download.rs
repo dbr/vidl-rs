@@ -1,15 +1,14 @@
+use std::io::{BufRead, BufReader};
+use std::process::{Command, Stdio};
+
 use anyhow::Result;
 
 use crate::youtube::VideoInfo;
 
-use std::io::{BufRead, BufReader};
-use std::process::{Command, Stdio};
-
 pub fn download(vid: &VideoInfo) -> Result<()> {
     let args: Vec<&str> = vec![&vid.url, "--newline", "-f", "18"];
 
-    let output = Stdio::piped();
-    let mut child = Command::new("youtube-dl")
+    let child = Command::new("youtube-dl")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .args(args)
