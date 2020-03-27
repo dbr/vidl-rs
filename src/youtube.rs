@@ -64,7 +64,7 @@ struct YTThumbnailInfo {
     quality: Option<String>,
     url: String,
     width: i32,
-    height: i64,
+    height: i32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
