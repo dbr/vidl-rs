@@ -104,6 +104,33 @@ impl std::fmt::Debug for VideoInfo {
     }
 }
 
+fn request_data<T: serde::de::DeserializeOwned + std::fmt::Debug>(url: &str) -> Result<T> {
+    fn subreq<T: serde::de::DeserializeOwned + std::fmt::Debug>(url: &str) -> Result<T> {
+        debug!("Retrieving URL {}", &url);
+        let resp = attohttpc::get(&url).send()?;
+        let text = resp.text()?;
+        trace!("Raw response: {}", &text);
+        let data: T = serde_json::from_str(&text)
+            .with_context(|| format!("Failed to parse response from {}", &url))?;
+        trace!("Raw deserialisation: {:?}", &data);
+        Ok(data)
+    }
+    let mut tries = 0;
+    let ret: Result<T> = loop {
+        let resp = subreq(url);
+        if let Ok(data) = resp {
+            break Ok(data);
+        }
+        debug!("Retrying request to {} because {:?}", &url, &resp);
+        if tries > 3 {
+            break resp;
+        }
+        tries += 1;
+    };
+
+    ret
+}
+
 /// Object to query data about given channel
 #[derive(Debug)]
 pub struct YoutubeQuery<'a> {
@@ -122,13 +149,7 @@ impl<'a> YoutubeQuery<'a> {
             chanid = self.chan_id.id
         );
 
-        debug!("Retrieving URL {}", &url);
-        let resp = attohttpc::get(&url).send()?;
-        let text = resp.text()?;
-        trace!("Raw response: {}", &text);
-        let d: YTChannelInfo = serde_json::from_str(&text)
-            .with_context(|| format!("Failed to parse response from {}", &url))?;
-        trace!("Raw deserialisation: {:?}", &d);
+        let d: YTChannelInfo = request_data(&url)?;
 
         Ok(ChannelMetadata {
             title: d.author.clone(),
@@ -148,13 +169,7 @@ impl<'a> YoutubeQuery<'a> {
                 page = page,
             );
 
-            debug!("Retrieving URL {}", &url);
-            let resp = attohttpc::get(&url).send()?;
-            let text = resp.text().unwrap();
-            trace!("Raw response: {}", &text);
-            let data: Vec<YTVideoInfo> = serde_json::from_str(&text)
-                .with_context(|| format!("Failed to parse response from {}", &url))?;
-            trace!("Raw deserialisation: {:?}", &data);
+            let data: Vec<YTVideoInfo> = request_data(&url)?;
 
             let ret: Vec<VideoInfo> = data
                 .iter()
