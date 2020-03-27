@@ -40,6 +40,8 @@ fn update() -> Result<()> {
         let videos = yt.videos();
 
         let newest_video = chan.latest_video(&db)?;
+
+        let mut new_videos: Vec<crate::youtube::VideoInfo> = vec![];
         for v in videos {
             let v = v?;
             if let Some(ref newest) = newest_video {
@@ -49,8 +51,12 @@ fn update() -> Result<()> {
                     break;
                 }
             }
-            chan.add_video(&db, &v)?;
+            new_videos.push(v);
+        }
+
+        for v in new_videos {
             debug!("Added {0}", v.title);
+            chan.add_video(&db, &v)?;
         }
     }
 
