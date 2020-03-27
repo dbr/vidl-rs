@@ -2,16 +2,30 @@ use anyhow::{Context, Result};
 use log::debug;
 use rusqlite::types::FromSql;
 use rusqlite::{params, Connection};
+use thiserror::Error;
 
-use crate::common::{ChannelID, Service};
+use crate::common::{ChannelID, Service, VideoStatus};
 use crate::config::Config;
 use crate::youtube::VideoInfo;
+
+#[derive(Error, Debug)]
+pub enum DatabaseError {
+    #[error("Misc database error")]
+    DatabaseError,
+
+    #[error("Invalid service string in database {0}")]
+    InvalidServiceInDB(String),
+
+    #[error("Invalid status string in database {0}")]
+    InvalidStatusInDB(String),
+}
 
 #[derive(Debug)]
 /// `VideoInfo` but with an SQL ID
 pub struct DBVideoInfo {
     pub id: i64,
     pub info: VideoInfo,
+    pub status: VideoStatus,
 }
 
 /// Wraps connection to a database
@@ -38,6 +52,7 @@ impl Database {
                       id            INTEGER PRIMARY KEY AUTOINCREMENT,
                       channel       INTEGER NOT NULL,
                       video_id      TEXT NOT NULL,
+                      status        TEXT NOT NULL,
                       url           TEXT NOT NULL,
                       title         TEXT NOT NULL,
                       description   TEXT NOT NULL,
@@ -74,10 +89,29 @@ impl Database {
 
 /// Converison from SQL text to `Service` instance
 impl FromSql for Service {
+    fn column_result(
+        value: rusqlite::types::ValueRef,
+    ) -> Result<Self, rusqlite::types::FromSqlError> {
+        let raw: &str = value.as_str()?;
+        match Service::from_str(raw) {
+            Ok(s) => Ok(s),
+            Err(_e) => Err(rusqlite::types::FromSqlError::Other(Box::new(
+                DatabaseError::InvalidServiceInDB(raw.into()),
+            ))),
+        }
+    }
+}
+
+/// Converison from SQL text to `Service` instance
+impl FromSql for VideoStatus {
     fn column_result(value: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
-        let sv: &str = value.as_str()?;
-        let service = Service::from_str(sv).unwrap();
-        Ok(service)
+        let raw: &str = value.as_str()?;
+        match VideoStatus::from_str(raw) {
+            Ok(s) => Ok(s),
+            Err(_e) => Err(rusqlite::types::FromSqlError::Other(Box::new(
+                DatabaseError::InvalidStatusInDB(raw.into()),
+            ))),
+        }
     }
 }
 
@@ -183,8 +217,8 @@ impl Channel {
     pub fn add_video(&self, db: &Database, video: &VideoInfo) -> Result<()> {
         db.conn
             .execute(
-                "INSERT INTO video (channel, video_id, url, title, description, thumbnail, published_at)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO video (channel, video_id, url, title, description, thumbnail, published_at, status)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 params![
                     self.id,
                     video.id,
@@ -193,6 +227,7 @@ impl Channel {
                     video.description,
                     video.thumbnail_url,
                     video.published_at.to_rfc3339(),
+                    VideoStatus::New.as_str(), // Default status
                 ],
             )
             .context("Add video query")?;
@@ -203,7 +238,7 @@ impl Channel {
     /// Return the most recently published video
     pub fn latest_video(&self, db: &Database) -> Result<Option<DBVideoInfo>> {
         let v: Result<DBVideoInfo, rusqlite::Error> = db.conn.query_row(
-            "SELECT id, video_id, url, title, description, thumbnail, published_at FROM video
+            "SELECT id, status, video_id, url, title, description, thumbnail, published_at FROM video
                 WHERE channel=?1
                 ORDER BY published_at DESC
                 LIMIT 1",
@@ -211,13 +246,14 @@ impl Channel {
             |row| {
                 Ok(DBVideoInfo {
                     id: row.get(0)?,
+                    status: row.get(1)?,
                     info: VideoInfo {
-                        id: row.get(1)?,
-                        url: row.get(2)?,
-                        title: row.get(3)?,
-                        description: row.get(4)?,
-                        thumbnail_url: row.get(5)?,
-                        published_at: row.get(6)?,
+                        id: row.get(2)?,
+                        url: row.get(3)?,
+                        title: row.get(4)?,
+                        description: row.get(5)?,
+                        thumbnail_url: row.get(6)?,
+                        published_at: row.get(7)?,
                     },
                 })
             },
@@ -237,13 +273,14 @@ impl Channel {
         let mapper = |row: &rusqlite::Row| {
             Ok(DBVideoInfo {
                 id: row.get(0)?,
+                status: row.get(1)?,
                 info: VideoInfo {
-                    id: row.get(1)?,
-                    url: row.get(2)?,
-                    title: row.get(3)?,
-                    description: row.get(4)?,
-                    thumbnail_url: row.get(5)?,
-                    published_at: row.get(6)?,
+                    id: row.get(2)?,
+                    url: row.get(3)?,
+                    title: row.get(4)?,
+                    description: row.get(5)?,
+                    thumbnail_url: row.get(6)?,
+                    published_at: row.get(7)?,
                 },
             })
         };
@@ -251,7 +288,7 @@ impl Channel {
         let mut ret: Vec<DBVideoInfo> = vec![];
 
         let mut q = db.conn.prepare(
-            "SELECT id, video_id, url, title, description, thumbnail, published_at
+            "SELECT id, status, video_id, url, title, description, thumbnail, published_at
                 FROM video
                 WHERE channel=?1
                 ORDER BY published_at DESC

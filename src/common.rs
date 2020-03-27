@@ -56,3 +56,38 @@ impl ChannelID {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum VideoStatus {
+    New,
+    Queued,
+    Downloading,
+    Grabbed,
+    GrabError,
+    Ignore,
+}
+
+impl VideoStatus {
+    pub fn as_str(&self) -> &str {
+        match self {
+            VideoStatus::New => "NE",
+            VideoStatus::Queued => "QU",
+            VideoStatus::Downloading => "DL",
+            VideoStatus::Grabbed => "GR",
+            VideoStatus::GrabError => "GE",
+            VideoStatus::Ignore => "IG",
+        }
+    }
+
+    pub fn from_str(status: &str) -> Result<Self> {
+        match status {
+            "NE" => Ok(VideoStatus::New),
+            "QU" => Ok(VideoStatus::Queued),
+            "DL" => Ok(VideoStatus::Downloading),
+            "GR" => Ok(VideoStatus::Grabbed),
+            "GE" => Ok(VideoStatus::GrabError),
+            "IG" => Ok(VideoStatus::Ignore),
+            _ => Err(anyhow::anyhow!("Unknown status string {:?}", status)),
+        }
+    }
+}
