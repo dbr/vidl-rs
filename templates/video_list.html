@@ -21,6 +21,13 @@
                             {{c.title}}
                             <br />
                             <small>{{c.published_at}}</small>
+                            <small>
+                                on
+                                <a href="/channel/{{c.channel.id}}">
+                                    <img src="{{c.channel.icon}}" width=16 height=16 />
+                                    {{c.channel.title}}
+                                </a>
+                            </small>
                         </div>
                     </a>
                 </div>

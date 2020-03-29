@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::Result;
 use log::info;
@@ -47,7 +47,7 @@ impl From<Vec<Channel>> for WebChannelList {
 }
 
 #[derive(Debug, Serialize)]
-pub struct WebVideoInfo {
+pub struct WebVideoInfo<'a> {
     id: i64,
     video_id: String,
     url: String,
@@ -56,6 +56,7 @@ pub struct WebVideoInfo {
     thumbnail_url: String,
     published_at: String,
     status_class: String,
+    channel: &'a WebChannel,
 }
 
 fn status_css_class(status: VideoStatus) -> String {
@@ -70,8 +71,9 @@ fn status_css_class(status: VideoStatus) -> String {
     .into()
 }
 
-impl From<DBVideoInfo> for WebVideoInfo {
-    fn from(src: DBVideoInfo) -> WebVideoInfo {
+impl<'a> From<(DBVideoInfo, &'a WebChannel)> for WebVideoInfo<'a> {
+    fn from(src: (DBVideoInfo, &'a WebChannel)) -> WebVideoInfo<'a> {
+        let (src, chan) = src;
         WebVideoInfo {
             id: src.id,
             video_id: src.info.id,
@@ -81,42 +83,20 @@ impl From<DBVideoInfo> for WebVideoInfo {
             thumbnail_url: src.info.thumbnail_url,
             published_at: src.info.published_at.to_rfc3339(),
             status_class: status_css_class(src.status),
+            channel: chan,
         }
     }
 }
 
 #[derive(Debug, Serialize)]
-pub struct WebChannelVideos {
-    channel: WebChannel,
-    videos: Vec<WebVideoInfo>,
+pub struct WebChannelVideos<'a> {
+    videos: Vec<WebVideoInfo<'a>>,
 }
 
 #[derive(Debug, Serialize)]
 pub enum WebResponse {
     Success,
     Error(String),
-}
-
-fn web_list_channels() -> Result<Response> {
-    let cfg = crate::config::Config::load();
-    let db = crate::db::Database::open(&cfg)?;
-    let chans = crate::db::list_channels(&db)?;
-    let ret: WebChannelList = chans.into();
-    Ok(Response::json(&ret))
-}
-
-fn web_channel(id: i64) -> Result<Response> {
-    let cfg = crate::config::Config::load();
-    let db = crate::db::Database::open(&cfg)?;
-
-    let c = crate::db::Channel::get_by_sqlid(&db, id)?;
-    let videos = c.all_videos(&db, 50, 0)?;
-
-    let ret = WebChannelVideos {
-        channel: c.into(),
-        videos: videos.into_iter().map(|v| v.into()).collect(),
-    };
-    Ok(Response::json(&ret))
 }
 
 fn page_chan_list(templates: &Tera) -> Result<Response> {
@@ -131,15 +111,38 @@ fn page_chan_list(templates: &Tera) -> Result<Response> {
     Ok(Response::html(t))
 }
 
-fn page_list_videos(id: i64, page: i64, templates: &Tera) -> Result<Response> {
+fn page_list_videos(id: Option<i64>, page: i64, templates: &Tera) -> Result<Response> {
     let cfg = crate::config::Config::load();
     let db = crate::db::Database::open(&cfg)?;
-    let c = crate::db::Channel::get_by_sqlid(&db, id)?;
-    let videos = c.all_videos(&db, 50, page)?;
+    let (c, videos): (Option<Channel>, Vec<DBVideoInfo>) = if let Some(id) = id {
+        let c = crate::db::Channel::get_by_sqlid(&db, id)?;
+        let videos = c.all_videos(&db, 50, page)?;
+        (Some(c), videos)
+    } else {
+        let videos = crate::db::all_videos(&db, 50, page)?;
+        (None, videos)
+    };
 
-    let ret = WebChannelVideos {
-        channel: c.into(),
-        videos: videos.into_iter().map(|v| v.into()).collect(),
+    // Construct a map of WebChannel's to be referenced by each video
+    let mut chans: HashMap<i64, WebChannel> = HashMap::new();
+    if let Some(c) = c {
+        chans.insert(c.id, c.into());
+    } else {
+        for v in &videos {
+            let c = v.channel(&db)?;
+            chans.insert(c.id, c.into());
+        }
+    }
+
+    // Each WebChannelVideo is VideoInfo plus a reference to the channel it belongs to
+    let ret: WebChannelVideos = WebChannelVideos {
+        videos: videos
+            .into_iter()
+            .map(|v| {
+                let wc = &chans[&v.chanid];
+                (v, wc).into()
+            })
+            .collect(),
     };
 
     let mut ctx = tera::Context::new();
@@ -188,9 +191,13 @@ fn handle_response(
         (GET) ["/"] => {
             page_chan_list(&templates)
         },
+        (GET) ["/channel/_all"] => {
+            let page: i64 = request.get_param("page").and_then(|x| x.parse::<i64>().ok()).unwrap_or(0);
+            page_list_videos(None, page, &templates)
+        },
         (GET) ["/channel/{chanid}", chanid: i64] => {
             let page: i64 = request.get_param("page").and_then(|x| x.parse::<i64>().ok()).unwrap_or(0);
-            page_list_videos(chanid, page, &templates)
+            page_list_videos(Some(chanid), page, &templates)
         },
         (GET) ["/download/{videoid}", videoid: i64] => {
             page_download_video(videoid, workers)
@@ -200,12 +207,6 @@ fn handle_response(
         },
         (GET) ["/youtube/api/1/refresh"] => {
             Ok(Response::json(&WebResponse::Success))
-        },
-        (GET) ["/youtube/api/1/channels"] => {
-            web_list_channels()
-        },
-        (GET) ["/youtube/api/1/channels/{chanid}", chanid: i64] => {
-            web_channel(chanid)
         },
         /*
         (GET) ["/youtube/api/1/video/{videoid:String}/grab"] => {
@@ -255,9 +256,15 @@ fn serve(workers: Arc<Mutex<WorkerPool>>) -> Result<()> {
 
     println!("yep");
     let addr = format!("{}:{}", cfg.web_host, cfg.web_port);
-    info!("Listening on http://{}", &addr);
-    let srv =
-        rouille::Server::new(&addr, move |request| handle_response(request, &templates)).unwrap();
+    let url = format!("http://{}", &addr);
+    info!("Listening on {}", &url);
+    let _p = std::process::Command::new("terminal-notifier")
+        .args(&["-message", "web server started", "-open", &url])
+        .spawn();
+    let srv = rouille::Server::new(&addr, move |request| {
+        handle_response(request, &templates, workers.clone())
+    })
+    .unwrap();
 
     let running = Arc::new(AtomicBool::new(true));
 

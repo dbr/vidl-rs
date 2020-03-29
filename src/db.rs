@@ -26,6 +26,7 @@ pub struct DBVideoInfo {
     pub id: i64,
     pub info: VideoInfo,
     pub status: VideoStatus,
+    pub chanid: i64,
 }
 
 impl DBVideoInfo {
@@ -33,7 +34,7 @@ impl DBVideoInfo {
         let chan = db
             .conn
             .query_row(
-                "SELECT id, status, video_id, url, title, description, thumbnail, published_at FROM video
+                "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel FROM video
                 WHERE id=?1",
                 params![id],
                 |row| {
@@ -48,11 +49,17 @@ impl DBVideoInfo {
                             thumbnail_url: row.get(6)?,
                             published_at: row.get(7)?,
                         },
+                        chanid: row.get(8)?,
                     })
                 },
             )
             .context("Failed to find channel")?;
 
+        Ok(chan)
+    }
+
+    pub fn channel(&self, db: &Database) -> Result<Channel> {
+        let chan = Channel::get_by_sqlid(&db, self.chanid)?;
         Ok(chan)
     }
 
@@ -297,7 +304,7 @@ impl Channel {
     /// Return the most recently published video
     pub fn latest_video(&self, db: &Database) -> Result<Option<DBVideoInfo>> {
         let v: Result<DBVideoInfo, rusqlite::Error> = db.conn.query_row(
-            "SELECT id, status, video_id, url, title, description, thumbnail, published_at FROM video
+            "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel FROM video
                 WHERE channel=?1
                 ORDER BY published_at DESC
                 LIMIT 1",
@@ -314,6 +321,7 @@ impl Channel {
                         thumbnail_url: row.get(6)?,
                         published_at: row.get(7)?,
                     },
+                    chanid: row.get(8)?,
                 })
             },
         );
@@ -341,13 +349,14 @@ impl Channel {
                     thumbnail_url: row.get(6)?,
                     published_at: row.get(7)?,
                 },
+                chanid: row.get(8)?,
             })
         };
 
         let mut ret: Vec<DBVideoInfo> = vec![];
 
         let mut q = db.conn.prepare(
-            "SELECT id, status, video_id, url, title, description, thumbnail, published_at
+            "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel
                 FROM video
                 WHERE channel=?1
                 ORDER BY published_at DESC
@@ -379,6 +388,40 @@ pub fn list_channels(db: &Database) -> Result<Vec<Channel>> {
     })?;
     let mut ret = vec![];
     for r in chaniter {
+        ret.push(r?);
+    }
+    Ok(ret)
+}
+
+pub fn all_videos(db: &Database, limit: i64, page: i64) -> Result<Vec<DBVideoInfo>> {
+    let mapper = |row: &rusqlite::Row| {
+        Ok(DBVideoInfo {
+            id: row.get(0)?,
+            status: row.get(1)?,
+            info: VideoInfo {
+                id: row.get(2)?,
+                url: row.get(3)?,
+                title: row.get(4)?,
+                description: row.get(5)?,
+                thumbnail_url: row.get(6)?,
+                published_at: row.get(7)?,
+            },
+            chanid: row.get(8)?,
+        })
+    };
+
+    let mut ret: Vec<DBVideoInfo> = vec![];
+
+    let mut q = db.conn.prepare(
+        "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel
+            FROM video
+            ORDER BY published_at DESC
+            LIMIT ?1
+            OFFSET ?2
+            ",
+    )?;
+    let mapped = q.query_map(params![limit, page * limit], mapper)?;
+    for r in mapped {
         ret.push(r?);
     }
     Ok(ret)
