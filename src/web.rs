@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -134,7 +134,23 @@ fn page_list_videos(id: i64, page: i64, templates: &Tera) -> Result<Response> {
     Ok(Response::html(t))
 }
 
-fn handle_response(request: &Request, templates: &Tera) -> Response {
+fn page_download_video(videoid: i64, workers: Arc<Mutex<WorkerPool>>) -> Result<Response> {
+    let cfg = crate::config::Config::load();
+    let db = crate::db::Database::open(&cfg)?;
+    let v = crate::db::DBVideoInfo::get_by_sqlid(&db, videoid)?;
+
+    {
+        let w = workers.lock().unwrap();
+        w.enqueue(crate::worker::WorkItem::Download(v));
+    }
+    Ok(Response::text("cool"))
+}
+
+fn handle_response(
+    request: &Request,
+    templates: &Tera,
+    workers: Arc<Mutex<WorkerPool>>,
+) -> Response {
     if let Some(request) = request.remove_prefix("/static") {
         if !cfg!(debug_assertions) {
             // In release mode, bundle static stuff into binary via include_str!()
@@ -160,7 +176,9 @@ fn handle_response(request: &Request, templates: &Tera) -> Response {
             let page: i64 = request.get_param("page").and_then(|x| x.parse::<i64>().ok()).unwrap_or(0);
             page_list_videos(chanid, page, &templates)
         },
-
+        (GET) ["/download/{videoid}", videoid: i64] => {
+            page_download_video(videoid, workers)
+        },
         (GET) ["/youtube/"] => {
             Ok(Response::html("test"))
         },
@@ -203,8 +221,9 @@ fn handle_response(request: &Request, templates: &Tera) -> Response {
         Err(e) => Response::text(&format!("Internal service error: {:?}", e)).with_status_code(500),
     }
 }
+use crate::worker::WorkerPool;
 
-pub fn serve() -> Result<()> {
+fn serve(workers: Arc<Mutex<WorkerPool>>) -> Result<()> {
     let cfg = Config::load();
 
     let templates: Tera = {
@@ -228,8 +247,19 @@ pub fn serve() -> Result<()> {
     let running = Arc::new(AtomicBool::new(true));
 
     while running.load(Ordering::SeqCst) {
-        srv.poll_timeout(Duration::from_millis(50));
+        srv.poll_timeout(Duration::from_millis(100));
     }
+
+    Ok(())
+}
+
+pub fn main() -> Result<()> {
+    let workers = Arc::new(Mutex::new(crate::worker::WorkerPool::start()));
+
+    let w = workers.clone();
+    let web_thread = std::thread::spawn(|| serve(w));
+
+    web_thread.join().unwrap()?;
 
     Ok(())
 }

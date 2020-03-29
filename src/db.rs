@@ -28,6 +28,35 @@ pub struct DBVideoInfo {
     pub status: VideoStatus,
 }
 
+impl DBVideoInfo {
+    pub fn get_by_sqlid(db: &Database, id: i64) -> Result<DBVideoInfo> {
+        let chan = db
+            .conn
+            .query_row(
+                "SELECT id, status, video_id, url, title, description, thumbnail, published_at FROM video
+                WHERE id=?1",
+                params![id],
+                |row| {
+                    Ok(DBVideoInfo {
+                        id: row.get(0)?,
+                        status: row.get(1)?,
+                        info: VideoInfo {
+                            id: row.get(2)?,
+                            url: row.get(3)?,
+                            title: row.get(4)?,
+                            description: row.get(5)?,
+                            thumbnail_url: row.get(6)?,
+                            published_at: row.get(7)?,
+                        },
+                    })
+                },
+            )
+            .context("Failed to find channel")?;
+
+        Ok(chan)
+    }
+}
+
 /// Wraps connection to a database
 pub struct Database {
     pub conn: Connection,

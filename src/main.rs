@@ -14,6 +14,7 @@ mod config;
 mod db;
 mod download;
 mod web;
+mod worker;
 mod youtube;
 
 use crate::common::{ChannelID, Service};
@@ -181,6 +182,9 @@ fn main() -> Result<()> {
     // Download subcommand
     let sc_download = SubCommand::with_name("download").about("enqueues videos for download");
 
+    // Download subcommand
+    let sc_worker = SubCommand::with_name("worker").about("download worker thread test");
+
     // Main command
     let app = App::new("vidl")
         .subcommand(sc_add)
@@ -188,6 +192,7 @@ fn main() -> Result<()> {
         .subcommand(sc_list)
         .subcommand(sc_web)
         .subcommand(sc_download)
+        .subcommand(sc_worker)
         .arg(
             Arg::with_name("verbose")
                 .short("v")
@@ -214,8 +219,9 @@ fn main() -> Result<()> {
         )?,
         ("update", Some(_sub_m)) => update()?,
         ("list", Some(sub_m)) => list(sub_m.value_of("id"))?,
-        ("web", Some(_sub_m)) => crate::web::serve()?,
+        ("web", Some(_sub_m)) => crate::web::main()?,
         ("download", Some(_sub_m)) => crate::download::main()?,
+        ("worker", Some(_sub_m)) => crate::worker::main()?,
         _ => {
             return Err(anyhow::anyhow!("Unhandled subcommand"));
         }
