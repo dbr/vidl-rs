@@ -2,9 +2,9 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-use log::{debug, info};
+use log::{debug, error, info};
 
-use crate::db::DBVideoInfo;
+use crate::{common::VideoStatus, db::DBVideoInfo};
 
 pub enum WorkItem {
     Download(DBVideoInfo),
@@ -27,6 +27,24 @@ impl Worker {
                 }
                 WorkItem::Download(ref val) => {
                     println!("Worker {}: Download {:#?}", self.num, val);
+                    let cfg = crate::config::Config::load();
+                    let db = crate::db::Database::open(&cfg).unwrap();
+
+                    val.set_status(&db, VideoStatus::Downloading).unwrap();
+                    let dl = crate::download::download(&val.info);
+
+                    match dl {
+                        Ok(_) => {
+                            info!("Grabbed {:?} successfully", &val.info);
+                            val.set_status(&db, crate::common::VideoStatus::Grabbed)
+                                .unwrap()
+                        }
+                        Err(e) => {
+                            error!("Error downloading {:?} - {:?}", &val.info, e);
+                            val.set_status(&db, crate::common::VideoStatus::GrabError)
+                                .unwrap();
+                        }
+                    };
                 }
             }
         }
@@ -45,6 +63,8 @@ impl WorkerPool {
         let pool = threadpool::ThreadPool::new(num_workers);
         let (sender, recv) = mpsc::channel();
         let recv = Arc::new(Mutex::new(recv));
+
+        // Launch worker threads
         for curnum in 0..num_workers {
             let w = Worker {
                 recv: recv.clone(),
@@ -52,6 +72,7 @@ impl WorkerPool {
             };
             pool.execute(move || w.run());
         }
+
         Self {
             pool,
             num_workers,
@@ -72,9 +93,11 @@ impl WorkerPool {
 impl Drop for WorkerPool {
     fn drop(&mut self) {
         debug!("Dropping WorkerPool, starting shutdown");
+        info!("Commencing worker pool shutdown");
         for _ in 0..self.num_workers {
             self.sender.send(WorkItem::Shutdown).unwrap();
         }
+        debug!("Joining worker pool");
         self.pool.join();
     }
 }

@@ -8,8 +8,10 @@ use rouille::{router, Request, Response};
 use serde_derive::Serialize;
 use tera::Tera;
 
+use crate::common::VideoStatus;
 use crate::config::Config;
 use crate::db::{Channel, DBVideoInfo};
+use crate::worker::WorkerPool;
 
 #[derive(Debug, Serialize)]
 pub struct WebChannel {
@@ -53,6 +55,19 @@ pub struct WebVideoInfo {
     description: String,
     thumbnail_url: String,
     published_at: String,
+    status_class: String,
+}
+
+fn status_css_class(status: VideoStatus) -> String {
+    match status {
+        VideoStatus::New => "ytdl-new",
+        VideoStatus::Queued => "ytdl-queued",
+        VideoStatus::Downloading => "ytdl-downloading",
+        VideoStatus::Grabbed => "ytdl-grabbed",
+        VideoStatus::GrabError => "ytdl-graberror",
+        VideoStatus::Ignore => "ytdl-ignore",
+    }
+    .into()
 }
 
 impl From<DBVideoInfo> for WebVideoInfo {
@@ -65,6 +80,7 @@ impl From<DBVideoInfo> for WebVideoInfo {
             description: src.info.description,
             thumbnail_url: src.info.thumbnail_url,
             published_at: src.info.published_at.to_rfc3339(),
+            status_class: status_css_class(src.status),
         }
     }
 }
@@ -221,7 +237,6 @@ fn handle_response(
         Err(e) => Response::text(&format!("Internal service error: {:?}", e)).with_status_code(500),
     }
 }
-use crate::worker::WorkerPool;
 
 fn serve(workers: Arc<Mutex<WorkerPool>>) -> Result<()> {
     let cfg = Config::load();

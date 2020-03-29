@@ -55,6 +55,18 @@ impl DBVideoInfo {
 
         Ok(chan)
     }
+
+    pub fn set_status(&self, db: &Database, status: VideoStatus) -> Result<()> {
+        let chan = db
+            .conn
+            .execute(
+                "UPDATE video SET status=?1 WHERE id=?2",
+                params![status.as_str(), self.id],
+            )
+            .context("Failed to update video status")?;
+
+        Ok(())
+    }
 }
 
 /// Wraps connection to a database
