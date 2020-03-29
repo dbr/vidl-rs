@@ -211,6 +211,10 @@ fn main() -> Result<()> {
                 .long("output")
                 .takes_value(true),
         );
+    let sc_backup = SubCommand::with_name("backup")
+        .about("Backup database as simple .json file")
+        .subcommand(sc_import)
+        .subcommand(sc_export);
 
     // Download subcommand
     let sc_download = SubCommand::with_name("download").about("enqueues videos for download");
@@ -224,8 +228,7 @@ fn main() -> Result<()> {
         .subcommand(sc_update)
         .subcommand(sc_list)
         .subcommand(sc_web)
-        .subcommand(sc_import)
-        .subcommand(sc_export)
+        .subcommand(sc_backup)
         .subcommand(sc_download)
         .subcommand(sc_worker)
         .arg(
@@ -255,8 +258,11 @@ fn main() -> Result<()> {
         ("update", Some(_sub_m)) => update()?,
         ("list", Some(sub_m)) => list(sub_m.value_of("id"))?,
         ("web", Some(_sub_m)) => crate::web::main()?,
-        ("import", Some(_sub_m)) => crate::backup::import()?,
-        ("export", Some(sub_m)) => crate::backup::export(sub_m.value_of("output"))?,
+        ("backup", Some(sub_m)) => match sub_m.subcommand() {
+            ("export", Some(sub_m)) => crate::backup::export(sub_m.value_of("output"))?,
+            ("import", Some(_sub_m)) => crate::backup::import()?,
+            _ => return Err(anyhow::anyhow!("Unhandled backup subcommand")),
+        },
         ("download", Some(_sub_m)) => crate::download::main()?,
         ("worker", Some(_sub_m)) => crate::worker::main()?,
         _ => {
