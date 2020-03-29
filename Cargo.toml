@@ -25,7 +25,7 @@ thiserror = "1.0"
 rouille = { git = 'https://github.com/tomaka/rouille', rev = 'e9692e1b19c8d25a742129a16bbe826c686ab274' }
 
 [dev-dependencies]
-mockito = "*"
+mockito = "0"
 
 [dependencies.rusqlite]
 features = ["chrono"]
