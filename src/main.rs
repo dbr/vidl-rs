@@ -9,6 +9,7 @@ extern crate serde_derive;
 
 use clap::{App, Arg, SubCommand};
 
+mod backup;
 mod common;
 mod config;
 mod db;
@@ -200,6 +201,17 @@ fn main() -> Result<()> {
     // Web subcommand
     let sc_web = SubCommand::with_name("web").about("serve web interface");
 
+    // Backup subcommands
+    let sc_import = SubCommand::with_name("import").about("import DB backup");
+    let sc_export = SubCommand::with_name("export")
+        .about("export DB backup")
+        .arg(
+            Arg::with_name("output")
+                .short("o")
+                .long("output")
+                .takes_value(true),
+        );
+
     // Download subcommand
     let sc_download = SubCommand::with_name("download").about("enqueues videos for download");
 
@@ -212,6 +224,8 @@ fn main() -> Result<()> {
         .subcommand(sc_update)
         .subcommand(sc_list)
         .subcommand(sc_web)
+        .subcommand(sc_import)
+        .subcommand(sc_export)
         .subcommand(sc_download)
         .subcommand(sc_worker)
         .arg(
@@ -241,6 +255,8 @@ fn main() -> Result<()> {
         ("update", Some(_sub_m)) => update()?,
         ("list", Some(sub_m)) => list(sub_m.value_of("id"))?,
         ("web", Some(_sub_m)) => crate::web::main()?,
+        ("import", Some(_sub_m)) => crate::backup::import()?,
+        ("export", Some(sub_m)) => crate::backup::export(sub_m.value_of("output"))?,
         ("download", Some(_sub_m)) => crate::download::main()?,
         ("worker", Some(_sub_m)) => crate::worker::main()?,
         _ => {
