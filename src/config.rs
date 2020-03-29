@@ -5,6 +5,9 @@ pub struct Config {
     db_filepath: PathBuf,
     pub web_host: String,
     pub web_port: String,
+    pub extra_youtubedl_args: Vec<String>,
+    pub download_dir: PathBuf,
+    pub filename_format: String,
 }
 
 impl Config {
@@ -17,6 +20,9 @@ impl Config {
             db_filepath: db_filepath,
             web_host: "0.0.0.0".into(),
             web_port: "8448".into(),
+            extra_youtubedl_args: vec!["--restrict-filenames".into(), "--continue".into()],
+            download_dir: PathBuf::from("/Users/dbr/Desktop/ytdl"),
+            filename_format: "%(uploader)s__%(upload_date)s_%(title)s__%(id)s.%(ext)s".into(),
         }
     }
 
