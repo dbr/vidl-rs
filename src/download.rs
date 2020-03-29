@@ -1,14 +1,41 @@
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use log::debug;
 
+use crate::config::Config;
 use crate::youtube::VideoInfo;
 
 pub fn download(vid: &VideoInfo) -> Result<()> {
-    let args: Vec<&str> = vec![&vid.url, "--newline", "-f", "18"];
+    let cfg = Config::load();
 
-    let child = Command::new("youtube-dl")
+    // Ensure output folder exists
+    std::fs::create_dir_all(&cfg.download_dir).context("Failed to make output folder")?;
+
+    let output_template = &cfg.download_dir.join(cfg.filename_format);
+
+    // Prepare command arguments
+    let mut args: Vec<&str> = vec![];
+
+    // First option required by progress parser
+    args.push("--newline");
+    args.push("--output");
+    args.push(output_template.to_str().unwrap());
+
+    // Then options from config
+    args.extend(
+        cfg.extra_youtubedl_args
+            .iter()
+            .map(|x: &String| -> &str { x.as_ref() }),
+    );
+
+    // Final arg is video URL
+    args.push(&vid.url);
+
+    debug!("Running youtube-dl with args {:#?}", args);
+
+    let mut child = Command::new("youtube-dl")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .args(args)
@@ -17,6 +44,7 @@ pub fn download(vid: &VideoInfo) -> Result<()> {
     {
         let stdout = child
             .stdout
+            .take()
             .ok_or(anyhow::anyhow!("Failed to find thing"))?;
 
         let reader = BufReader::new(stdout);
@@ -25,6 +53,13 @@ pub fn download(vid: &VideoInfo) -> Result<()> {
             .lines()
             .filter_map(|line| line.ok())
             .for_each(|line| println!("{}", line));
+    }
+    let exit = child.wait()?;
+    if !exit.success() {
+        return Err(anyhow::anyhow!(
+            "youtube-dl exited with non-zero exit status {}",
+            exit
+        ));
     }
 
     Ok(())
