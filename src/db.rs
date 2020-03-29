@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::common::{ChannelID, Service, VideoStatus};
 use crate::config::Config;
-use crate::youtube::VideoInfo;
+use crate::youtube::{ChannelMetadata, VideoInfo};
 
 #[derive(Error, Debug)]
 pub enum DatabaseError {
@@ -94,7 +94,7 @@ impl Database {
                       channel       INTEGER NOT NULL,
                       video_id      TEXT NOT NULL,
                       status        TEXT NOT NULL,
-                      url           TEXT NOT NULL,
+                      url           TEXT NOT NULL UNIQUE,
                       title         TEXT NOT NULL,
                       description   TEXT NOT NULL,
                       thumbnail     TEXT NOT NULL,
@@ -255,9 +255,19 @@ impl Channel {
         Channel::get(&db, cid)
     }
 
-    /// Add supplied video to database
-    pub fn add_video(&self, db: &Database, video: &VideoInfo) -> Result<()> {
+    pub fn update_metadata(&self, db: &Database, meta: &ChannelMetadata) -> Result<()> {
         db.conn
+            .execute(
+                "UPDATE channel SET title=?1, thumbnail=?2 WHERE id=?3",
+                params![meta.title, meta.thumbnail, self.id],
+            )
+            .context("Failed to update channel metadata")?;
+        Ok(())
+    }
+
+    /// Add supplied video to database
+    pub fn add_video(&self, db: &Database, video: &VideoInfo) -> Result<DBVideoInfo> {
+        match db.conn
             .execute(
                 "INSERT INTO video (channel, video_id, url, title, description, thumbnail, published_at, status)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -272,9 +282,16 @@ impl Channel {
                     VideoStatus::New.as_str(), // Default status
                 ],
             )
-            .context("Add video query")?;
+            .context("Add video query") {
+                Ok(k) => (Ok(k)),
+                Err(e) => {
+                    println!("{:?}", e);
+                    Err(e)
+                },
+            }?;
+        let last_id = db.conn.last_insert_rowid();
 
-        Ok(())
+        Ok(DBVideoInfo::get_by_sqlid(&db, last_id)?)
     }
 
     /// Return the most recently published video
@@ -350,7 +367,7 @@ impl Channel {
 pub fn list_channels(db: &Database) -> Result<Vec<Channel>> {
     let mut stmt = db
         .conn
-        .prepare("SELECT id, chanid, service, title, thumbnail FROM channel")?;
+        .prepare("SELECT id, chanid, service, title, thumbnail FROM channel ORDER BY title")?;
     let chaniter = stmt.query_map(params![], |row| {
         Ok(Channel {
             id: row.get(0)?,

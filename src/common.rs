@@ -21,6 +21,17 @@ impl Service {
             _ => Err(anyhow::anyhow!("Unknown service string {:?}", name)),
         }
     }
+
+    pub fn get_channel_id(&self, chanid_str: &str) -> ChannelID {
+        match self {
+            Service::Youtube => ChannelID::Youtube(YoutubeID {
+                id: chanid_str.into(),
+            }),
+            Service::Vimeo => ChannelID::Vimeo(VimeoID {
+                id: chanid_str.into(),
+            }),
+        }
+    }
 }
 
 /// Identifier for channel on Youtube

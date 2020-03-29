@@ -2,7 +2,7 @@ extern crate serde;
 extern crate serde_json;
 
 use anyhow::Result;
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 
 #[macro_use]
 extern crate serde_derive;
@@ -32,12 +32,30 @@ fn update() -> Result<()> {
     for chan in channels.iter() {
         info!("Updating channel: {:?}", &chan);
 
-        assert_eq!(chan.service.as_str(), "youtube"); // FIXME
+        if chan.service.as_str() != "youtube" {
+            // FIXME
+            error!("Ignoring Vimeo channel {:?}", &chan);
+            continue;
+        }
         let chanid = crate::common::YoutubeID {
             id: chan.chanid.clone(),
         };
 
         let yt = crate::youtube::YoutubeQuery::new(&chanid);
+        let meta = yt.get_metadata();
+
+        match meta {
+            Ok(meta) => chan.update_metadata(&db, &meta)?,
+            Err(e) => {
+                error!(
+                    "Error fetching metadata for {:?} - {} - skipping channel",
+                    chanid, e
+                );
+                // Skip to next channel
+                continue;
+            }
+        }
+
         let videos = yt.videos();
 
         let newest_video = chan.latest_video(&db)?;
@@ -46,7 +64,7 @@ fn update() -> Result<()> {
         for v in videos {
             let v = v?;
             if let Some(ref newest) = newest_video {
-                if v.published_at <= newest.info.published_at {
+                if v.url == newest.info.url || v.published_at <= newest.info.published_at {
                     // Stop adding videos once we've seen one as-new
                     debug!("Already seen video Video {:?}", &v);
                     break;
@@ -56,8 +74,11 @@ fn update() -> Result<()> {
         }
 
         for v in new_videos {
-            debug!("Added {0}", v.title);
-            chan.add_video(&db, &v)?;
+            debug!("Adding {0}", v.title);
+            match chan.add_video(&db, &v) {
+                Ok(_) => (),
+                Err(e) => error!("Error adding video {:?} - {:?}", &v, e),
+            };
         }
     }
 
