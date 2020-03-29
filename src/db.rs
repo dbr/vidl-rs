@@ -109,6 +109,7 @@ impl Database {
     }
 
     /// Opens a non-persistant database in memory. Likely only useful for test cases.
+    #[cfg(test)]
     pub fn open_in_memory() -> Result<Database> {
         let conn = Connection::open_in_memory()?;
         Database::create_tables(&conn)?;
