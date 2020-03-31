@@ -49,10 +49,21 @@ pub fn download(vid: &VideoInfo) -> Result<()> {
 
         let reader = BufReader::new(stdout);
 
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or(anyhow::anyhow!("Failed to find thing"))?;
+        let reader_err = BufReader::new(stderr);
+
         reader
             .lines()
             .filter_map(|line| line.ok())
             .for_each(|line| println!("{}", line));
+
+        reader_err
+            .lines()
+            .filter_map(|line| line.ok())
+            .for_each(|line| println!("ERR: {}", line));
     }
     let exit = child.wait()?;
     if !exit.success() {
