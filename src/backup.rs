@@ -4,16 +4,28 @@ use chrono::{DateTime, Utc};
 use crate::{
     common::{Service, VideoStatus},
     config::Config,
-    db::{DBVideoInfo, Database},
+    db::{Channel, DBVideoInfo, Database},
     youtube::VideoInfo,
 };
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct BackupChannel {
     chanid: String,
     service: String,
-    videos: Vec<BackupVideoInfo>,
     icon: String,
+    id: i64,
+}
+
+impl From<&Channel> for BackupChannel {
+    fn from(src: &Channel) -> Self {
+        Self {
+            chanid: src.chanid.clone(),
+            service: src.service.as_str().into(),
+            icon: src.thumbnail.clone(),
+            id: src.id,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -25,6 +37,13 @@ struct BackupVideoInfo {
     publishdate: String,
     description: String,
     thumbnail_url: String,
+    channel_id: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct Backup {
+    channels: Vec<BackupChannel>,
+    videos: Vec<BackupVideoInfo>,
 }
 
 impl From<BackupVideoInfo> for VideoInfo {
@@ -47,6 +66,7 @@ impl From<BackupVideoInfo> for VideoInfo {
 impl From<&DBVideoInfo> for BackupVideoInfo {
     fn from(src: &DBVideoInfo) -> Self {
         Self {
+            channel_id: src.chanid,
             status: src.status.as_str().into(),
             title: src.info.title.clone(),
             url: src.info.url.clone(),
@@ -64,22 +84,28 @@ pub fn import() -> Result<()> {
 
     let stdin = std::io::stdin();
     let lock = stdin.lock();
-    let hm: Vec<BackupChannel> = serde_json::from_reader(lock)?;
-    for chan in hm {
+    let back: Backup = serde_json::from_reader(lock)?;
+
+    let mut chanmap: HashMap<i64, Channel> = HashMap::new();
+    for chan in back.channels {
         let service = Service::from_str(&chan.service)?;
         let cid = service.get_channel_id(&chan.chanid);
         eprintln!("Processing cid = {:#?}", cid);
         let db_chan = crate::db::Channel::get(&db, &cid)
             .or_else(|_| crate::db::Channel::create(&db, &cid, &chan.chanid, &chan.icon))?;
+        chanmap.insert(db_chan.id, db_chan);
+    }
 
+    for backup_vid in back.videos {
         println!("Parsing videos");
-        for backup_vid in chan.videos {
-            let status = VideoStatus::from_str(&backup_vid.status)?;
-            let v: VideoInfo = backup_vid.into();
-            match db_chan.add_video(&db, &v) {
-                Ok(dbv) => dbv.set_status(&db, status)?,
-                Err(e) => eprintln!("{:?}", e),
-            }
+
+        let db_chan = &chanmap[&backup_vid.channel_id];
+
+        let status = VideoStatus::from_str(&backup_vid.status)?;
+        let v: VideoInfo = backup_vid.into();
+        match db_chan.add_video(&db, &v) {
+            Ok(dbv) => dbv.set_status(&db, status)?,
+            Err(e) => eprintln!("{:?}", e),
         }
     }
     Ok(())
@@ -89,15 +115,23 @@ pub fn export(output: Option<&str>) -> Result<()> {
     let cfg = Config::load();
     let db = Database::open(&cfg)?;
 
-    let all = crate::db::all_videos(&db, std::i64::MAX, 0)?;
-    let serialisable: Vec<BackupVideoInfo> = all.iter().map(|v| v.into()).collect();
+    let chans = crate::db::list_channels(&db)?;
+    let chans_ser: Vec<BackupChannel> = chans.iter().map(|v| v.into()).collect();
+
+    let vids = crate::db::all_videos(&db, std::i64::MAX, 0)?;
+    let vids_ser: Vec<BackupVideoInfo> = vids.iter().map(|v| v.into()).collect();
+
+    let back = Backup {
+        channels: chans_ser,
+        videos: vids_ser,
+    };
 
     let stdout = std::io::stdout();
     if let Some(output) = output {
         let f = std::fs::File::create(output)?;
-        serde_json::to_writer_pretty(f, &serialisable)?;
+        serde_json::to_writer_pretty(f, &back)?;
     } else {
-        serde_json::to_writer_pretty(stdout.lock(), &serialisable)?;
+        serde_json::to_writer_pretty(stdout.lock(), &back)?;
     };
 
     Ok(())
