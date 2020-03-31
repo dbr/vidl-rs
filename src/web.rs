@@ -171,6 +171,8 @@ fn handle_response(
     workers: Arc<Mutex<WorkerPool>>,
 ) -> Response {
     if let Some(request) = request.remove_prefix("/static") {
+        // FIXME
+        return rouille::match_assets(&request, "static");
         if !cfg!(debug_assertions) {
             // In release mode, bundle static stuff into binary via include_str!()
             let x = match request.url().as_ref() {
