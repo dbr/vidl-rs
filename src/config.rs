@@ -1,5 +1,5 @@
 use directories::ProjectDirs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct Config {
     db_filepath: PathBuf,
@@ -14,14 +14,21 @@ impl Config {
     pub fn load() -> Config {
         let pd = ProjectDirs::from("uk.co", "dbrweb", "vidl")
             .expect("Unable to determine configuration directories");
-        let cfg = pd.data_dir();
-        let db_filepath = cfg.join("vidl.sqlite3");
+        let cfg: PathBuf = PathBuf::from(pd.data_dir());
+
+        let config_dir = std::env::var("VIDL_CONFIG_DIR")
+            .and_then(|p| Ok(PathBuf::from(p)))
+            .unwrap_or(cfg);
+        let db_filepath = config_dir.join("vidl.sqlite3");
+
         Config {
             db_filepath: db_filepath,
             web_host: "0.0.0.0".into(),
             web_port: "8448".into(),
             extra_youtubedl_args: vec!["--restrict-filenames".into(), "--continue".into()],
-            download_dir: PathBuf::from("/Users/dbr/Desktop/ytdl"),
+            download_dir: PathBuf::from(
+                std::env::var("VIDL_DOWNLOAD_DIR").unwrap_or("./download".into()),
+            ),
             filename_format: "%(uploader)s__%(upload_date)s_%(title)s__%(id)s.%(ext)s".into(),
         }
     }
