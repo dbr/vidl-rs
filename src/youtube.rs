@@ -98,8 +98,8 @@ impl std::fmt::Debug for VideoInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "VideoInfo{{id: {:?}, title: {:?}, url: {:?}}}",
-            self.id, self.title, self.url
+            "VideoInfo{{id: {:?}, title: {:?}, url: {:?}, published_at: {:?}}}",
+            self.id, self.title, self.url, self.published_at,
         )
     }
 }
