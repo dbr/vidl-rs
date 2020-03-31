@@ -89,7 +89,8 @@ impl Database {
                       chanid        TEXT NOT NULL,
                       service       TEXT NOT NULL,
                       title         TEXT NOT NULL,
-                      thumbnail     TEXT NOT NULL
+                      thumbnail     TEXT NOT NULL,
+                      last_update   DATETIME NULL
                       )",
             params![],
         )
@@ -107,7 +108,15 @@ impl Database {
                       thumbnail     TEXT NOT NULL,
                       published_at  DATETIME NOT NULL,
                       FOREIGN KEY(channel) REFERENCES channel(id)
-                      )",
+                      );
+
+            CREATE INDEX idx_video_published_at ON video (
+                published_at
+            );
+            CREATE INDEX idx_video_channel ON video (
+                channel
+            );
+            ",
             params![],
         )
         .context("Creating video table")?;
@@ -260,6 +269,27 @@ impl Channel {
 
         // Return newly created channel
         Channel::get(&db, cid)
+    }
+
+    pub fn last_update(&self, db: &Database) -> Result<Option<chrono::DateTime<chrono::Utc>>> {
+        let result: Option<chrono::DateTime<chrono::Utc>> = db.conn.query_row(
+            "SELECT last_update FROM channel WHERE id=?1",
+            params![self.id],
+            |row| Ok(row.get(0)?),
+        )?;
+        Ok(result)
+    }
+
+    /// Set the `last_update` time to now
+    pub fn set_last_update(&self, db: &Database) -> Result<()> {
+        let now = chrono::Utc::now();
+        db.conn
+            .execute(
+                "UPDATE channel SET last_update=?1 WHERE id=?2",
+                params![now, self.id],
+            )
+            .context("Failed to update last_update time")?;
+        Ok(())
     }
 
     pub fn update_metadata(&self, db: &Database, meta: &ChannelMetadata) -> Result<()> {

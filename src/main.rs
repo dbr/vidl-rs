@@ -31,7 +31,27 @@ fn update() -> Result<()> {
         warn!("No channels yet added");
     }
     for chan in channels.iter() {
+        let last_update = chan.last_update(&db)?;
+        let needs_update = if let Some(last_update) = last_update {
+            let now = chrono::Utc::now();
+            let delta = now - last_update;
+            let interval = chrono::Duration::hours(1);
+            delta > interval
+        } else {
+            // Not yet been updated
+            true
+        };
+
+        // Skip if no updated required
+        if !needs_update {
+            info!("Channel updated recently, skipping {:?}", &chan);
+            continue;
+        }
+
         info!("Updating channel: {:?}", &chan);
+
+        // Set updated time now, even in case of failure
+        chan.set_last_update(&db)?;
 
         if chan.service.as_str() != "youtube" {
             // FIXME
@@ -61,9 +81,15 @@ fn update() -> Result<()> {
 
         let newest_video = chan.latest_video(&db)?;
 
+        debug!(
+            "Oldest video for channel {:?} is {:?}",
+            &chan, &newest_video
+        );
+
         let mut new_videos: Vec<crate::youtube::VideoInfo> = vec![];
         for v in videos {
             let v = v?;
+
             if let Some(ref newest) = newest_video {
                 if v.url == newest.info.url || v.published_at <= newest.info.published_at {
                     // Stop adding videos once we've seen one as-new
