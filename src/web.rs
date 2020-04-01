@@ -6,7 +6,6 @@ use anyhow::Result;
 use log::info;
 use rouille::{router, Request, Response};
 use serde_derive::Serialize;
-use tera::Tera;
 
 use crate::common::VideoStatus;
 use crate::config::Config;
@@ -99,19 +98,33 @@ pub enum WebResponse {
     Error(String),
 }
 
-fn page_chan_list(templates: &Tera) -> Result<Response> {
+use askama::Template;
+#[derive(Template)]
+#[template(path = "channel_list.html")]
+struct ChannelListTemplate<'a> {
+    chans: &'a WebChannelList,
+}
+
+fn page_chan_list() -> Result<Response> {
     let cfg = crate::config::Config::load();
     let db = crate::db::Database::open(&cfg)?;
     let chans = crate::db::list_channels(&db)?;
     let ret: WebChannelList = chans.into();
 
-    let mut ctx = tera::Context::new();
-    ctx.insert("chans", &ret);
-    let t = templates.render("channel_list.html", &ctx).unwrap();
-    Ok(Response::html(t))
+    let t = ChannelListTemplate { chans: &ret };
+
+    let html = t.render()?;
+    Ok(Response::html(html))
 }
 
-fn page_list_videos(id: Option<i64>, page: i64, templates: &Tera) -> Result<Response> {
+#[derive(Template)]
+#[template(path = "video_list.html")]
+struct VideoListTemplate<'a> {
+    videos: &'a WebChannelVideos<'a>,
+    page: i64,
+}
+
+fn page_list_videos(id: Option<i64>, page: i64) -> Result<Response> {
     let cfg = crate::config::Config::load();
     let db = crate::db::Database::open(&cfg)?;
     let (c, videos): (Option<Channel>, Vec<DBVideoInfo>) = if let Some(id) = id {
@@ -145,12 +158,12 @@ fn page_list_videos(id: Option<i64>, page: i64, templates: &Tera) -> Result<Resp
             .collect(),
     };
 
-    let mut ctx = tera::Context::new();
-    ctx.insert("videos", &ret);
-    ctx.insert("page", &page);
-    let t = templates.render("video_list.html", &ctx).unwrap();
-
-    Ok(Response::html(t))
+    let t = VideoListTemplate {
+        videos: &ret,
+        page: page,
+    };
+    let html = t.render()?;
+    Ok(Response::html(html))
 }
 
 fn page_download_video(videoid: i64, workers: Arc<Mutex<WorkerPool>>) -> Result<Response> {
@@ -165,11 +178,7 @@ fn page_download_video(videoid: i64, workers: Arc<Mutex<WorkerPool>>) -> Result<
     Ok(Response::text("cool"))
 }
 
-fn handle_response(
-    request: &Request,
-    templates: &Tera,
-    workers: Arc<Mutex<WorkerPool>>,
-) -> Response {
+fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Response {
     if let Some(request) = request.remove_prefix("/static") {
         // FIXME
         return rouille::match_assets(&request, "static");
@@ -191,15 +200,15 @@ fn handle_response(
 
     let resp: Result<Response> = router!(request,
         (GET) ["/"] => {
-            page_chan_list(&templates)
+            page_chan_list()
         },
         (GET) ["/channel/_all"] => {
             let page: i64 = request.get_param("page").and_then(|x| x.parse::<i64>().ok()).unwrap_or(0);
-            page_list_videos(None, page, &templates)
+            page_list_videos(None, page)
         },
         (GET) ["/channel/{chanid}", chanid: i64] => {
             let page: i64 = request.get_param("page").and_then(|x| x.parse::<i64>().ok()).unwrap_or(0);
-            page_list_videos(Some(chanid), page, &templates)
+            page_list_videos(Some(chanid), page)
         },
         (GET) ["/download/{videoid}", videoid: i64] => {
             page_download_video(videoid, workers)
@@ -218,18 +227,6 @@ fn handle_response(
 fn serve(workers: Arc<Mutex<WorkerPool>>) -> Result<()> {
     let cfg = Config::load();
 
-    let templates: Tera = {
-        let mut tera = match Tera::new("templates/**/*") {
-            Ok(t) => t,
-            Err(e) => {
-                eprintln!("Parsing error(s): {}", e);
-                ::std::process::exit(1);
-            }
-        };
-        tera.autoescape_on(vec!["html", ".sql"]);
-        tera
-    };
-
     println!("yep");
     let addr = format!("{}:{}", cfg.web_host, cfg.web_port);
     let url = format!("http://{}", &addr);
@@ -238,7 +235,7 @@ fn serve(workers: Arc<Mutex<WorkerPool>>) -> Result<()> {
         .args(&["-message", "web server started", "-open", &url])
         .spawn();
     let srv = rouille::Server::new(&addr, move |request| {
-        handle_response(request, &templates, workers.clone())
+        handle_response(request, workers.clone())
     })
     .unwrap();
 
