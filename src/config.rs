@@ -1,5 +1,5 @@
 use directories::ProjectDirs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub struct Config {
     db_filepath: PathBuf,
