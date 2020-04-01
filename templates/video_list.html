@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 
 {% block body %}
+<script src="/static/popperjs_core_2.js"></script>
+<script src="/static/tippy_6.js"></script>
 <div id="content">
 
     <a href="?page={{page-1}}" class="pure-button ytdl-nextprev {% if page == 0 %} pure-button-disabled{%endif%}">
@@ -21,21 +23,34 @@
                     <a href="/download/{{ c.id }}">
                         <div style="padding: 4px">
                             {{c.title}}
-                            <br />
-                            <small>{{c.published_at}}</small>
-                            <small>
-                                on
-                                <a href="/channel/{{c.channel.id}}">
-                                    <img src="{{c.channel.icon}}" width=16 height=16 />
-                                    {{c.channel.title}}
-                                </a>
-                            </small>
-                        </div>
                     </a>
+                    <br />
+                    <small>{{c.published_at}}</small>
+                    <small>
+                        on
+                        <a href="/channel/{{c.channel.id}}">
+                            <img src="{{c.channel.icon}}" width=16 height=16 />
+                            {{c.channel.title}}
+                        </a>
+                    </small>
                 </div>
             </td>
             <td>
-                <a href="{{c.url}}" class="pure-button button-info">View</a>
+                <span id="vidl-tippy-content-{{c.id}}">
+                    <img src="{{c.thumbnail_url}}" width="256" />
+                    <br>
+                    {{c.description}}
+                </span>
+                <span id="vidl-tippy-tooltip-{{c.id}}">Info</span>
+                <script>
+                    tippy(document.getElementById("vidl-tippy-tooltip-{{c.id}}"), {
+                        placement: 'left',
+                        content: document.getElementById("vidl-tippy-content-{{c.id}}"),
+                    });
+                </script>
+            </td>
+            <td>
+                <a href=" {{c.url}}" class="pure-button button-info">View</a>
             </td>
             <td>
                 <a href="#" class="pure-button button-warning">Ignore</a>
