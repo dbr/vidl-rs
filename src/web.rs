@@ -204,32 +204,6 @@ fn handle_response(
         (GET) ["/download/{videoid}", videoid: i64] => {
             page_download_video(videoid, workers)
         },
-        (GET) ["/youtube/"] => {
-            Ok(Response::html("test"))
-        },
-        (GET) ["/youtube/api/1/refresh"] => {
-            Ok(Response::json(&WebResponse::Success))
-        },
-        /*
-        (GET) ["/youtube/api/1/video/{videoid:String}/grab"] => {
-            Response::html("test")
-        },
-        (GET) ["/youtube/api/1/video/{videoid:String}>/mark_viewed"] => {
-            Response::html("test")
-        },
-        (GET) ["/youtube/api/1/video/{videoid:String}/mark_ignored"] => {
-            Response::html("test")
-        },
-        (GET) ["/youtube/api/1/video_status"] => {
-            Response::html("test")
-        },
-        (GET) ["/youtube/api/1/downloads"] => {
-            Response::html("test")
-        },
-        (POST) ["/youtube/api/1/channel_add"] => {
-            Response::html("test")
-        },
-        */
         // Default route
         _ => {
             Ok(Response::text("404 Not found").with_status_code(404))
