@@ -2,15 +2,26 @@
 {%block body%}
 <table class="pure-table pure-table-horizontal pure-table-striped"
     style="width: 300px; margin-left: auto; margin-right: auto;">
+    <tr>
+        <td>
+            <a href="/channel/_all">
+                <div style="width: 100%">
+                    All channels
+                </div>
+            </a>
+        </td>
+    </tr>
     {% for c in chans['channels'] %}
     <tr>
         <td>
             <a href="/channel/{{c.id}}">
                 <div style="width: 100%">
-                    <img src="{{c.icon}}" width=16 height=16 /> {{c.title}}
+                    <img src="{{c.icon}}" width=16 height=16 />
+                    {{c.title}}
                 </div>
             </a>
         </td>
     </tr>
     {% endfor %}
-    {%endblock%}
+</table>
+{%endblock%}
