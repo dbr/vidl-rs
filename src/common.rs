@@ -70,11 +70,22 @@ impl ChannelID {
 
 #[derive(Debug)]
 pub enum VideoStatus {
+    /// New video
     New,
+
+    /// Marked for download
     Queued,
+
+    /// Being actively downloaded
     Downloading,
+
+    /// Downloaded
     Grabbed,
+
+    /// Error occured during download
     GrabError,
+
+    /// Marked by user as uninteresting
     Ignore,
 }
 

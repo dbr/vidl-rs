@@ -84,7 +84,7 @@ impl WorkerPool {
         self.sender.send(item).unwrap();
     }
 
-    /// Stops all workers threads
+    /// Completes all queued work then stops workers
     pub fn stop(self) {
         std::mem::drop(self); // Redundant as this method consumes self anyway
     }

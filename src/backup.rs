@@ -78,6 +78,7 @@ impl From<&DBVideoInfo> for BackupVideoInfo {
     }
 }
 
+/// Load backup file
 pub fn import() -> Result<()> {
     let cfg = Config::load();
     let db = Database::open(&cfg)?;
@@ -90,15 +91,12 @@ pub fn import() -> Result<()> {
     for chan in back.channels {
         let service = Service::from_str(&chan.service)?;
         let cid = service.get_channel_id(&chan.chanid);
-        eprintln!("Processing cid = {:#?}", cid);
         let db_chan = crate::db::Channel::get(&db, &cid)
             .or_else(|_| crate::db::Channel::create(&db, &cid, &chan.chanid, &chan.icon))?;
         chanmap.insert(db_chan.id, db_chan);
     }
 
     for backup_vid in back.videos {
-        println!("Parsing videos");
-
         let db_chan = &chanmap[&backup_vid.channel_id];
 
         let status = VideoStatus::from_str(&backup_vid.status)?;
@@ -111,6 +109,7 @@ pub fn import() -> Result<()> {
     Ok(())
 }
 
+/// Export channels, videos, and their status etc to a JSON file
 pub fn export(output: Option<&str>) -> Result<()> {
     let cfg = Config::load();
     let db = Database::open(&cfg)?;
