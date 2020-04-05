@@ -75,20 +75,3 @@ pub fn download(vid: &VideoInfo) -> Result<()> {
 
     Ok(())
 }
-
-pub fn main() -> Result<()> {
-    let cfg = crate::config::Config::load();
-    let db = crate::db::Database::open(&cfg)?;
-
-    let chan_num = "1";
-    // List specific channel
-    let channels = crate::db::list_channels(&db)?;
-    for c in channels {
-        if &format!("{}", c.id) == chan_num {
-            let v = c.latest_video(&db)?.unwrap();
-            println!("{:?}", &v);
-            download(&v.info)?;
-        }
-    }
-    Ok(())
-}

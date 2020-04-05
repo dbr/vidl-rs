@@ -219,7 +219,6 @@ fn main() -> Result<()> {
             ("import", Some(_sub_m)) => crate::backup::import()?,
             _ => return Err(anyhow::anyhow!("Unhandled backup subcommand")),
         },
-        ("download", Some(_sub_m)) => crate::download::main()?,
         ("worker", Some(_sub_m)) => crate::worker::main()?,
         _ => {
             return Err(anyhow::anyhow!("Unhandled subcommand"));
