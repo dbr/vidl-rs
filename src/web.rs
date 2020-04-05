@@ -171,6 +171,10 @@ fn page_download_video(videoid: i64, workers: Arc<Mutex<WorkerPool>>) -> Result<
     let db = crate::db::Database::open(&cfg)?;
     let v = crate::db::DBVideoInfo::get_by_sqlid(&db, videoid)?;
 
+    // Mark video as queued
+    v.set_status(&db, VideoStatus::Queued);
+
+    // Then add it to the work queue
     {
         let w = workers.lock().unwrap();
         w.enqueue(crate::worker::WorkItem::Download(v));
