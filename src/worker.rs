@@ -4,11 +4,15 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use log::{debug, error, info};
 
-use crate::{common::VideoStatus, db::DBVideoInfo};
+use crate::{
+    common::VideoStatus,
+    db::{Channel, DBVideoInfo},
+};
 
 pub enum WorkItem {
     Download(DBVideoInfo),
     Shutdown,
+    UpdateCheck(Channel),
 }
 
 struct Worker {
@@ -44,6 +48,28 @@ impl Worker {
                             val.set_status(&db, crate::common::VideoStatus::GrabError)
                                 .unwrap();
                         }
+                    };
+                }
+                WorkItem::UpdateCheck(ref chan) => {
+                    let cfg = crate::config::Config::load();
+                    let db = crate::db::Database::open(&cfg).unwrap();
+                    let last_update = chan.last_update(&db).unwrap();
+                    debug!(
+                        "Checking channel for update {:?} - last update {:?}",
+                        chan, last_update
+                    );
+                    let time_to_update = if let Some(last_update) = last_update {
+                        let now = chrono::Utc::now();
+                        let delta = now - last_update;
+                        delta > chrono::Duration::minutes(60)
+                    } else {
+                        // No laste update, so time to update now
+                        true
+                    };
+
+                    if time_to_update {
+                        info!("Time to update {:?}", &chan);
+                        chan.update(&db).unwrap();
                     };
                 }
             }

@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use log::debug;
+use log::{debug, error, info};
 use rusqlite::types::FromSql;
 use rusqlite::{params, Connection};
 use thiserror::Error;
@@ -399,6 +399,85 @@ impl Channel {
             ret.push(r?);
         }
         Ok(ret)
+    }
+
+    pub fn update(&self, db: &Database) -> Result<()> {
+        // Check if channel needs updating
+        let last_update = self.last_update(&db)?;
+        let needs_update = if let Some(last_update) = last_update {
+            let now = chrono::Utc::now();
+            let delta = now - last_update;
+            let interval = chrono::Duration::hours(6); // TODO: Move this to config?
+            delta > interval
+        } else {
+            // Never been updated before, so needs update now
+            true
+        };
+
+        // Skip if no updated required
+        if !needs_update {
+            info!("Channel updated recently, skipping {:?}", &self);
+            return Ok(());
+        }
+
+        // Set updated time now (even in case of failure)
+        self.set_last_update(&db)?;
+
+        if self.service.as_str() != "youtube" {
+            // FIXME
+            error!("Ignoring Vimeo channel {:?}", &self);
+            return Ok(());
+        }
+        let chanid = crate::common::YoutubeID {
+            id: self.chanid.clone(),
+        };
+
+        let yt = crate::youtube::YoutubeQuery::new(&chanid);
+        let meta = yt.get_metadata();
+
+        match meta {
+            Ok(meta) => self.update_metadata(&db, &meta)?,
+            Err(e) => {
+                error!(
+                    "Error fetching metadata for {:?} - {} - skipping channel",
+                    chanid, e
+                );
+                // Skip to next channel
+                return Ok(());
+            }
+        }
+
+        let videos = yt.videos();
+
+        let newest_video = self.latest_video(&db)?;
+
+        debug!(
+            "Oldest video for channel {:?} is {:?}",
+            &self, &newest_video
+        );
+
+        let mut new_videos: Vec<crate::youtube::VideoInfo> = vec![];
+        for v in videos {
+            let v = v?;
+
+            if let Some(ref newest) = newest_video {
+                if v.url == newest.info.url || v.published_at <= newest.info.published_at {
+                    // Stop adding videos once we've seen one as-new
+                    debug!("Already seen video Video {:?}", &v);
+                    break;
+                }
+            }
+            new_videos.push(v);
+        }
+
+        for v in new_videos {
+            debug!("Adding {0}", v.title);
+            match self.add_video(&db, &v) {
+                Ok(_) => (),
+                Err(e) => error!("Error adding video {:?} - {:?}", &v, e),
+            };
+        }
+        Ok(())
     }
 }
 
