@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use anyhow::{Context, Result};
 use log::{debug, error, info};
 use rusqlite::types::FromSql;
@@ -331,39 +333,23 @@ impl Channel {
         Ok(DBVideoInfo::get_by_sqlid(&db, last_id)?)
     }
 
-    /// Return the most recently published video
-    pub fn latest_video(&self, db: &Database) -> Result<Option<DBVideoInfo>> {
-        let v: Result<DBVideoInfo, rusqlite::Error> = db.conn.query_row(
-            "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel FROM video
+    /// Get the URL's of the most recently published videos - returning up to and including `num` results.
+    pub fn last_n_video_urls(&self, db: &Database, num: i64) -> Result<HashSet<String>> {
+        let mut q = db.conn.prepare(
+            "SELECT url FROM video
                 WHERE channel=?1
                 ORDER BY published_at DESC
-                LIMIT 1",
-            params![self.id],
-            |row| {
-                Ok(DBVideoInfo {
-                    id: row.get(0)?,
-                    status: row.get(1)?,
-                    info: VideoInfo {
-                        id: row.get(2)?,
-                        url: row.get(3)?,
-                        title: row.get(4)?,
-                        description: row.get(5)?,
-                        thumbnail_url: row.get(6)?,
-                        published_at: row.get(7)?,
-                    },
-                    chanid: row.get(8)?,
-                })
-            },
-        );
+                LIMIT ?2",
+        )?;
+        let mapped = q.query_map(params![self.id, num], |row| row.get(0))?;
 
-        match v {
-            // Success
-            Ok(video) => Ok(Some(video)),
-            // No results
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            // Propagate other errors
-            Err(e) => Err(e.into()),
+        let mut set = HashSet::new();
+        for m in mapped {
+            let url: String = m?;
+            set.insert(url);
         }
+
+        Ok(set)
     }
 
     pub fn all_videos(&self, db: &Database, limit: i64, page: i64) -> Result<Vec<DBVideoInfo>> {
@@ -449,24 +435,19 @@ impl Channel {
 
         let videos = yt.videos();
 
-        let newest_video = self.latest_video(&db)?;
-
-        debug!(
-            "Oldest video for channel {:?} is {:?}",
-            &self, &newest_video
-        );
+        let seen_videos = self
+            .last_n_video_urls(&db, 50)
+            .context("Failed to find latest video URLs")?;
 
         let mut new_videos: Vec<crate::youtube::VideoInfo> = vec![];
         for v in videos {
             let v = v?;
 
-            if let Some(ref newest) = newest_video {
-                if v.url == newest.info.url || v.published_at <= newest.info.published_at {
-                    // Stop adding videos once we've seen one as-new
-                    debug!("Already seen video Video {:?}", &v);
-                    break;
-                }
+            if seen_videos.contains(&v.url) {
+                debug!("Already seen video by URL {:?}", v.url);
+                break;
             }
+
             new_videos.push(v);
         }
 
@@ -581,8 +562,8 @@ mod tests {
 
         // ..and no latest video
         {
-            let latest = c.latest_video(&mdb)?;
-            assert!(latest.is_none());
+            let latest = c.last_n_video_urls(&mdb, 50)?;
+            assert_eq!(latest.len(), 0);
         }
 
         // Create new video
@@ -636,9 +617,8 @@ mod tests {
 
         // Check latest video method returns the older video, not oldest-inserted
         {
-            let latest = c.latest_video(&mdb)?;
-            assert!(latest.is_some());
-            assert_eq!(latest.unwrap().info.id, "an id");
+            let latest = c.last_n_video_urls(&mdb, 50)?;
+            assert_eq!(latest.len(), 2);
         }
         Ok(())
     }
