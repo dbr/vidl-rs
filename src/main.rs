@@ -28,15 +28,19 @@ fn update() -> Result<()> {
 
     let work = worker::WorkerPool::start();
 
+    // Get list of channels
     let channels = crate::db::list_channels(&db)?;
     if channels.len() == 0 {
         warn!("No channels yet added");
     }
+
+    // Queue update
     for chan in channels.into_iter() {
         info!("Updating channel: {:?}", &chan);
         work.enqueue(worker::WorkItem::UpdateCheck(chan));
     }
 
+    // Wait for queue to empty
     work.stop();
 
     Ok(())

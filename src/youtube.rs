@@ -94,6 +94,7 @@ pub struct VideoInfo {
     pub thumbnail_url: String,
     pub published_at: chrono::DateTime<chrono::Utc>,
 }
+
 impl std::fmt::Debug for VideoInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
