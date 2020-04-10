@@ -3,7 +3,9 @@ use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, time::Duration};
 
 use anyhow::Result;
-use log::info;
+use askama::Template;
+use lazy_static::lazy_static;
+use log::{error, info};
 use rouille::{router, Request, Response};
 use serde_derive::Serialize;
 
@@ -11,6 +13,55 @@ use crate::common::VideoStatus;
 use crate::config::Config;
 use crate::db::{Channel, DBVideoInfo};
 use crate::worker::WorkerPool;
+
+#[derive(Clone)]
+pub(crate) struct Image {
+    pub(crate) data: Vec<u8>,
+    pub(crate) content_type: String,
+}
+
+pub(crate) struct ImageCache {
+    images: HashMap<String, Image>,
+}
+
+#[derive(Clone)]
+enum ImageCacheResponse {
+    Redirect(String),
+    Image(Image),
+}
+
+impl ImageCache {
+    fn new() -> Self {
+        ImageCache {
+            images: HashMap::new(),
+        }
+    }
+
+    fn get(
+        &mut self,
+        url: String,
+        worker: Arc<Mutex<crate::worker::WorkerPool>>,
+    ) -> Result<ImageCacheResponse> {
+        if self.images.contains_key(&url) {
+            let cached = self.images.get(&url);
+            Ok(ImageCacheResponse::Image((*cached.unwrap()).clone()))
+        } else {
+            let thready_url: String = url.clone();
+            let pool = worker.lock().unwrap();
+            pool.enqueue(crate::worker::WorkItem::ThumbnailCache(thready_url));
+
+            Ok(ImageCacheResponse::Redirect(url.into()))
+        }
+    }
+
+    pub(crate) fn add(&mut self, url: &str, img: Image) {
+        self.images.insert(url.into(), img);
+    }
+}
+
+lazy_static! {
+    pub(crate) static ref IMG_CACHE: Mutex<ImageCache> = Mutex::new(ImageCache::new());
+}
 
 #[derive(Debug, Serialize)]
 pub struct WebChannel {
@@ -92,13 +143,6 @@ pub struct WebChannelVideos<'a> {
     videos: Vec<WebVideoInfo<'a>>,
 }
 
-#[derive(Debug, Serialize)]
-pub enum WebResponse {
-    Success,
-    Error(String),
-}
-
-use askama::Template;
 #[derive(Template)]
 #[template(path = "channel_list.html")]
 struct ChannelListTemplate<'a> {
@@ -172,7 +216,7 @@ fn page_download_video(videoid: i64, workers: Arc<Mutex<WorkerPool>>) -> Result<
     let v = crate::db::DBVideoInfo::get_by_sqlid(&db, videoid)?;
 
     // Mark video as queued
-    v.set_status(&db, VideoStatus::Queued);
+    v.set_status(&db, VideoStatus::Queued)?;
 
     // Then add it to the work queue
     {
@@ -182,24 +226,65 @@ fn page_download_video(videoid: i64, workers: Arc<Mutex<WorkerPool>>) -> Result<
     Ok(Response::text("cool"))
 }
 
+enum ThumbnailType {
+    Video,
+    Channel,
+}
+
+fn page_thumbnail(
+    id: i64,
+    what: ThumbnailType,
+    workers: Arc<Mutex<WorkerPool>>,
+) -> Result<Response> {
+    let cfg = crate::config::Config::load();
+    let db = crate::db::Database::open(&cfg)?;
+
+    let url = match what {
+        ThumbnailType::Channel => {
+            let chan = crate::db::Channel::get_by_sqlid(&db, id)?;
+            chan.thumbnail
+        }
+        ThumbnailType::Video => {
+            let vi = crate::db::DBVideoInfo::get_by_sqlid(&db, id)?;
+            vi.info.thumbnail_url
+        }
+    };
+
+    let image = {
+        let mut ic = IMG_CACHE.lock().unwrap();
+        let image = ic.get(url, workers)?;
+        image.clone()
+    };
+    match image {
+        ImageCacheResponse::Redirect(url) => Ok(Response::redirect_303(url)),
+        ImageCacheResponse::Image(image) => Ok(Response::from_data(
+            image.content_type.clone(),
+            image.data.clone(),
+        )),
+    }
+}
+
 fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Response {
     if let Some(request) = request.remove_prefix("/static") {
-        // FIXME
-        return rouille::match_assets(&request, "static");
-        if !cfg!(debug_assertions) {
-            // In release mode, bundle static stuff into binary via include_str!()
-            let x = match request.url().as_ref() {
-                "/app.jsx" => Some((include_str!("web.rs"), "application/javascript")),
-                _ => None,
-            };
-            return match x {
-                None => Response::text("404").with_status_code(404),
-                Some((data, t)) => Response::from_data(t, data),
-            };
-        } else {
-            // In debug build, read assets from folder for reloadability
-            return rouille::match_assets(&request, "static");
-        }
+        // Can do dynamic serving of files with:
+        // return rouille::match_assets(&request, "static");
+
+        let x = match request.url().as_ref() {
+            "/popperjs_core_2.js" => Some((
+                include_str!("../static/popperjs_core_2.js"),
+                "application/javascript",
+            )),
+            "/pure-min.css" => Some((include_str!("../static/pure-min.css"), "text/css")),
+            "/tippy_6.js" => Some((
+                include_str!("../static/tippy_6.js"),
+                "application/javascript",
+            )),
+            _ => None,
+        };
+        return match x {
+            None => Response::text("404").with_status_code(404),
+            Some((data, t)) => Response::from_data(t, data),
+        };
     }
 
     let resp: Result<Response> = router!(request,
@@ -215,7 +300,13 @@ fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Respon
             page_list_videos(Some(chanid), page)
         },
         (GET) ["/download/{videoid}", videoid: i64] => {
-            page_download_video(videoid, workers)
+            page_download_video(videoid, workers.clone())
+        },
+        (GET) ["/thumbnail/video/{id}", id: i64] => {
+            page_thumbnail(id, ThumbnailType::Video, workers.clone())
+        },
+        (GET) ["/thumbnail/channel/{id}", id: i64] => {
+            page_thumbnail(id, ThumbnailType::Channel, workers.clone())
         },
         // Default route
         _ => {

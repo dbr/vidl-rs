@@ -8,6 +8,7 @@ pub struct Config {
     pub extra_youtubedl_args: Vec<String>,
     pub download_dir: PathBuf,
     pub filename_format: String,
+    pub num_workers: usize,
 }
 
 impl Config {
@@ -30,6 +31,7 @@ impl Config {
                 std::env::var("VIDL_DOWNLOAD_DIR").unwrap_or("./download".into()),
             ),
             filename_format: "%(uploader)s__%(upload_date)s_%(title)s__%(id)s.%(ext)s".into(),
+            num_workers: 4,
         }
     }
 

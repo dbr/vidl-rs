@@ -18,18 +18,19 @@
         <tr class="{{ c.status_class }}" style="border: 2px solid white;">
             <td>
                 <div class="ytdl-videoinfo" style="width: 100%; height: 100%;">
-                    <img src="{{c.thumbnail_url}}" width=32
+                    <img src="/thumbnail/video/{{c.id}}" width=32
                         style="float: left; padding: 4px; vertical-align: baseline;">
                     <a href="/download/{{ c.id }}">
                         <div style="padding: 4px">
                             {{c.title}}
+                        </div>
                     </a>
                     <br />
                     <small>{{c.published_at}}</small>
                     <small>
                         on
                         <a href="/channel/{{c.channel.id}}">
-                            <img src="{{c.channel.icon}}" width=16 height=16 />
+                            <img src="/thumbnail/channel/{{c.channel.id}}" width=16 height=16 />
                             {{c.channel.title}}
                         </a>
                     </small>
@@ -37,7 +38,7 @@
             </td>
             <td>
                 <span id="vidl-tippy-content-{{c.id}}">
-                    <img src="{{c.thumbnail_url}}" width="256" />
+                    <img src="/thumbnail/video/{{c.id}}" width="256" />
                     <br>
                     {{c.description}}
                 </span>

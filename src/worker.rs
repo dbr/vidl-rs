@@ -13,6 +13,7 @@ pub enum WorkItem {
     Download(DBVideoInfo),
     Shutdown,
     UpdateCheck(Channel),
+    ThumbnailCache(String),
 }
 
 struct Worker {
@@ -29,6 +30,7 @@ impl Worker {
                     info!("Shutting down worker {}", self.num);
                     return;
                 }
+
                 WorkItem::Download(ref val) => {
                     println!("Worker {}: Download {:#?}", self.num, val);
                     let cfg = crate::config::Config::load();
@@ -50,6 +52,7 @@ impl Worker {
                         }
                     };
                 }
+
                 WorkItem::UpdateCheck(ref chan) => {
                     let cfg = crate::config::Config::load();
                     let db = crate::db::Database::open(&cfg).unwrap();
@@ -71,6 +74,27 @@ impl Worker {
                         info!("Time to update {:?}", &chan);
                         chan.update(&db).unwrap();
                     };
+                }
+
+                WorkItem::ThumbnailCache(ref url) => {
+                    let resp = attohttpc::get(&url).send().unwrap();
+                    if !resp.status().is_success() {
+                        error!("Failed to grab thumbnail for {}", &url);
+                    } else {
+                        let ct: String = resp
+                            .headers()
+                            .get(attohttpc::header::CONTENT_TYPE)
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .into();
+                        let data = resp.bytes().unwrap();
+                        let img = crate::web::Image {
+                            content_type: ct.clone(),
+                            data: data.clone(),
+                        };
+                        crate::web::IMG_CACHE.lock().unwrap().add(&url, img);
+                    }
                 }
             }
         }
