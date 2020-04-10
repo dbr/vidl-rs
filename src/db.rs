@@ -129,8 +129,10 @@ impl Database {
     pub fn open(cfg: &Config) -> Result<Database> {
         let path = cfg.db_filepath();
         if let Some(p) = path.parent() {
-            debug!("Creating {:?}", p);
-            std::fs::create_dir_all(p)?
+            if !path.exists() {
+                debug!("Creating {:?}", p);
+                std::fs::create_dir_all(p)?
+            }
         };
         debug!("Loading DB from {:?}", path);
         let conn = Connection::open(path)?;
