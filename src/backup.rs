@@ -1,13 +1,12 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 
-use crate::{
-    common::{Service, VideoStatus},
-    config::Config,
-    db::{Channel, DBVideoInfo, Database},
-    youtube::VideoInfo,
-};
-use std::collections::HashMap;
+use crate::common::{Service, VideoStatus};
+use crate::config::Config;
+use crate::db::{Channel, DBVideoInfo, Database};
+use crate::youtube::VideoInfo;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct BackupChannel {

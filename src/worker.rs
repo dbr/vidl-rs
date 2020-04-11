@@ -4,10 +4,8 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use log::{debug, error, info};
 
-use crate::{
-    common::VideoStatus,
-    db::{Channel, DBVideoInfo},
-};
+use crate::common::VideoStatus;
+use crate::db::{Channel, DBVideoInfo};
 
 pub enum WorkItem {
     Download(DBVideoInfo),
