@@ -20,15 +20,23 @@ pub enum DatabaseError {
 }
 
 #[derive(Debug)]
-/// `VideoInfo` but with an SQL ID
+/// `VideoInfo` but with additional info which couldn't be known without the database (e.g SQL ID, VIDL's video status)
 pub struct DBVideoInfo {
+    /// SQL ID of video
     pub id: i64,
+
+    /// The video info
     pub info: VideoInfo,
+
+    /// If the video has been grabbed etc
     pub status: VideoStatus,
+
+    /// SQL ID of parent channel
     pub chanid: i64,
 }
 
 impl DBVideoInfo {
+    /// Retrieve video's info by SQL ID
     pub fn get_by_sqlid(db: &Database, id: i64) -> Result<DBVideoInfo> {
         let chan = db
             .conn
@@ -57,18 +65,23 @@ impl DBVideoInfo {
         Ok(chan)
     }
 
+    /// Get parent channel for video
     pub fn channel(&self, db: &Database) -> Result<Channel> {
         let chan = Channel::get_by_sqlid(&db, self.chanid)?;
         Ok(chan)
     }
 
+    /// Set status of video
     pub fn set_status(&self, db: &Database, status: VideoStatus) -> Result<()> {
+        // Update DB
         db.conn
             .execute(
                 "UPDATE video SET status=?1 WHERE id=?2",
                 params![status.as_str(), self.id],
             )
             .context("Failed to update video status")?;
+
+        // FIXME: Should this update self.status?
 
         Ok(())
     }
