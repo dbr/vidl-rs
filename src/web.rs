@@ -214,6 +214,7 @@ fn page_download_video(videoid: i64, workers: Arc<Mutex<WorkerPool>>) -> Result<
     let cfg = crate::config::Config::load();
     let db = crate::db::Database::open(&cfg)?;
     let v = crate::db::DBVideoInfo::get_by_sqlid(&db, videoid)?;
+    let chanid = v.chanid;
 
     // Mark video as queued
     v.set_status(&db, VideoStatus::Queued)?;
@@ -223,7 +224,9 @@ fn page_download_video(videoid: i64, workers: Arc<Mutex<WorkerPool>>) -> Result<
         let w = workers.lock().unwrap();
         w.enqueue(crate::worker::WorkItem::Download(v));
     }
-    Ok(Response::text("cool"))
+
+    // Redirect to channel for no-javascript clicking
+    Ok(Response::redirect_303(format!("/channel/{}", chanid)))
 }
 
 enum ThumbnailType {
@@ -299,7 +302,7 @@ fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Respon
             let page: i64 = request.get_param("page").and_then(|x| x.parse::<i64>().ok()).unwrap_or(0);
             page_list_videos(Some(chanid), page)
         },
-        (GET) ["/download/{videoid}", videoid: i64] => {
+        (POST) ["/download/{videoid}", videoid: i64] => {
             page_download_video(videoid, workers.clone())
         },
         (GET) ["/thumbnail/video/{id}", id: i64] => {

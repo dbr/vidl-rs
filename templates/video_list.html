@@ -3,6 +3,22 @@
 {% block body %}
 <script src="/static/popperjs_core_2.js"></script>
 <script src="/static/tippy_6.js"></script>
+<script>
+    function vidl_grab_video(video_id) {
+        fetch(
+            "/download/" + video_id,
+            {
+                method: 'POST',
+                cache: 'no-cache',
+            }
+        ).then(function (data) {
+            document.getElementById("vidl-video-" + video_id).classList.add("ytdl-queued");
+        }).catch(function (e) {
+            console.log("Error grabbing", e);
+            document.getElementById("vidl-video-" + video_id).classList.add("ytdl-graberror");
+        });
+    }
+</script>
 <div id="content">
 
     <a href="?page={{page-1}}" class="pure-button ytdl-nextprev {% if page == 0 %} pure-button-disabled{%endif%}">
@@ -15,12 +31,13 @@
 
     <table class="pure-table pure-table-horizontal">
         {% for c in videos.videos %}
-        <tr class="{{ c.status_class }}" style="border: 2px solid white;">
+        <tr id="vidl-video-{{c.id}}" class="{{ c.status_class }}" style="border: 2px solid white;">
             <td>
                 <div class="ytdl-videoinfo" style="width: 100%; height: 100%;">
                     <img src="/thumbnail/video/{{c.id}}" width=32
                         style="float: left; padding: 4px; vertical-align: baseline;">
-                    <a href="/download/{{ c.id }}">
+                    <a href="/download/{{ c.id }}" onclick="vidl_grab_video({{ c.id }}); return false;">
+                        <!-- FIXME: Wont currently work without JS as /download/1 needs POST'd -->
                         <div style="padding: 4px">
                             {{c.title}}
                         </div>
