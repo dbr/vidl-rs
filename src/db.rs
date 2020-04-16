@@ -12,9 +12,6 @@ use crate::youtube::{ChannelMetadata, VideoInfo};
 
 #[derive(Error, Debug)]
 pub enum DatabaseError {
-    #[error("Misc database error")]
-    DatabaseError,
-
     #[error("Invalid service string in database {0}")]
     InvalidServiceInDB(String),
 
@@ -66,8 +63,7 @@ impl DBVideoInfo {
     }
 
     pub fn set_status(&self, db: &Database, status: VideoStatus) -> Result<()> {
-        let chan = db
-            .conn
+        db.conn
             .execute(
                 "UPDATE video SET status=?1 WHERE id=?2",
                 params![status.as_str(), self.id],

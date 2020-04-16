@@ -5,7 +5,7 @@ use std::{collections::HashMap, time::Duration};
 use anyhow::Result;
 use askama::Template;
 use lazy_static::lazy_static;
-use log::{error, info};
+use log::info;
 use rouille::{router, Request, Response};
 use serde_derive::Serialize;
 

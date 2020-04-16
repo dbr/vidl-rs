@@ -2,7 +2,7 @@ extern crate serde;
 extern crate serde_json;
 
 use anyhow::Result;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 
 #[macro_use]
 extern crate serde_derive;
