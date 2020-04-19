@@ -317,7 +317,7 @@ impl Channel {
 
     /// Add supplied video to database
     pub fn add_video(&self, db: &Database, video: &VideoInfo) -> Result<DBVideoInfo> {
-        match db.conn
+        db.conn
             .execute(
                 "INSERT INTO video (channel, video_id, url, title, description, thumbnail, published_at, status)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -332,13 +332,7 @@ impl Channel {
                     VideoStatus::New.as_str(), // Default status
                 ],
             )
-            .context("Add video query") {
-                Ok(k) => (Ok(k)),
-                Err(e) => {
-                    println!("{:?}", e);
-                    Err(e)
-                },
-            }?;
+            .context("Add video query")?;
         let last_id = db.conn.last_insert_rowid();
 
         Ok(DBVideoInfo::get_by_sqlid(&db, last_id)?)
