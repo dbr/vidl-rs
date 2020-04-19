@@ -75,6 +75,15 @@ impl Worker {
                 }
 
                 WorkItem::ThumbnailCache(ref url) => {
+                    // Check if image is already in cache, as it may have been added since queued
+                    {
+                        let ic = crate::web::IMG_CACHE.lock().unwrap();
+                        if ic.contains(url) {
+                            debug!("Image already in cache, skipping");
+                            return;
+                        }
+                    }
+
                     let resp = attohttpc::get(&url).send().unwrap();
                     if !resp.status().is_success() {
                         error!("Failed to grab thumbnail for {}", &url);

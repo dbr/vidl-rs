@@ -37,6 +37,10 @@ impl ImageCache {
         }
     }
 
+    pub(crate) fn contains(&self, url: &str) -> bool {
+        self.images.contains_key(url)
+    }
+
     fn get(
         &mut self,
         url: String,
