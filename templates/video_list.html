@@ -1,5 +1,15 @@
 {% extends "base.html" %}
 
+{%- macro navbuttons() -%}
+<a href="?page={{page-1}}" class="pure-button ytdl-nextprev {% if page == 0 %} pure-button-disabled{%endif%}">
+    Prev page
+</a>
+<a href="?page={{page+1}}"
+    class="pure-button ytdl-nextprev {% if videos.videos.len() == 0 %} pure-button-disabled{%endif%}">
+    Next page
+</a>
+{%- endmacro -%}
+
 {% block body %}
 <script src="/static/popperjs_core_2.js"></script>
 <script src="/static/tippy_6.js"></script>
@@ -21,13 +31,7 @@
 </script>
 <div id="content">
 
-    <a href="?page={{page-1}}" class="pure-button ytdl-nextprev {% if page == 0 %} pure-button-disabled{%endif%}">
-        Prev page
-    </a>
-    <a href="?page={{page+1}}"
-        class="pure-button ytdl-nextprev {% if videos.videos.len() == 0 %} pure-button-disabled{%endif%}">
-        Next page
-    </a>
+    {%- call navbuttons() -%}
 
     <table class="pure-table pure-table-horizontal">
         {% for c in videos.videos %}
@@ -81,6 +85,9 @@
         </tr>
         {% endif %}
     </table>
+
+    {%- call navbuttons() -%}
+
 </div>
 
 <style>
