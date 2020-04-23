@@ -161,10 +161,18 @@ impl Database {
 
     /// Opens a non-persistant database in memory. Likely only useful for test cases.
     #[cfg(test)]
-    pub fn create_in_memory() -> Result<Database> {
+    pub fn create_in_memory(with_tables: bool) -> Result<Database> {
+        // Create database in memory
         let conn = Connection::open_in_memory()?;
-        let mig = crate::db_migration::get_migrator(&conn);
-        mig.setup()?;
+
+        if with_tables {
+            // Setup migrator table
+            let mig = crate::db_migration::get_migrator(&conn);
+            mig.setup()?;
+
+            // Setup latest schema
+            mig.upgrade()?;
+        }
 
         Ok(Database { conn })
     }
@@ -543,11 +551,15 @@ mod tests {
 
     #[test]
     fn test_list_channels() -> Result<()> {
-        let mdb = Database::create_in_memory()?;
+        let mdb = Database::create_in_memory(true)?;
+        // Create database in memory
 
-        // Check no channels exist in newly created DB
+        // Check no channels exist i
+        // Setup migrator tablen newly created DB
         {
             let chans = list_channels(&mdb)?;
+
+            // Setup latest schema
             assert_eq!(chans.len(), 0);
         }
 

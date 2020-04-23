@@ -204,7 +204,7 @@ fn test_migration() {
     }
     // Test migrations ^
 
-    let db = crate::db::Database::create_in_memory().unwrap();
+    let db = crate::db::Database::create_in_memory(false).unwrap();
 
     let mig = Migrator {
         migs: vec![
