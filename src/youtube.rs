@@ -93,6 +93,7 @@ pub struct VideoInfo {
     pub description: String,
     pub thumbnail_url: String,
     pub published_at: chrono::DateTime<chrono::Utc>,
+    pub duration: i32,
 }
 
 impl std::fmt::Debug for VideoInfo {
@@ -181,6 +182,7 @@ impl<'a> YoutubeQuery<'a> {
                     description: d.description.clone(),
                     thumbnail_url: d.video_thumbnails.first().unwrap().url.clone(),
                     published_at: chrono::Utc.timestamp(d.published, 0),
+                    duration: d.length_seconds,
                 })
                 .collect();
 
@@ -305,13 +307,19 @@ mod test {
             .skip(58) // 60 videos per page, want to breach boundry
             .take(3)
             .collect::<Result<Vec<super::VideoInfo>>>()?;
+
+        dbg!(&result);
+
         assert_eq!(result[0].title, "Vlog 013 - Excommunication");
         assert_eq!(result[1].title, "Vlog 012 - Only in America!");
         assert_eq!(
             result[2].title,
             "Vlog 011 - The part of the house no-one ever sees!"
         );
-        dbg!(result);
+
+        assert_eq!(result[0].duration, 652);
+        assert_eq!(result[1].duration, 562);
+        assert_eq!(result[2].duration, 320);
 
         mock_p1.expect(1);
         mock_p2.expect(1);

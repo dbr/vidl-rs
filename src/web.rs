@@ -111,6 +111,7 @@ pub struct WebVideoInfo<'a> {
     published_at: String,
     status_class: String,
     channel: &'a WebChannel,
+    duration: i32,
 }
 
 fn status_css_class(status: VideoStatus) -> String {
@@ -138,6 +139,7 @@ impl<'a> From<(DBVideoInfo, &'a WebChannel)> for WebVideoInfo<'a> {
             published_at: src.info.published_at.to_rfc3339(),
             status_class: status_css_class(src.status),
             channel: chan,
+            duration: src.info.duration,
         }
     }
 }

@@ -13,7 +13,9 @@ mod backup;
 mod common;
 mod config;
 mod db;
+mod db_migration;
 mod download;
+mod libmig;
 mod web;
 mod worker;
 mod youtube;
@@ -102,6 +104,18 @@ fn list(chan_num: Option<&str>) -> Result<()> {
     Ok(())
 }
 
+fn migrate() -> Result<()> {
+    let cfg = crate::config::Config::load();
+    let _db = crate::db::Database::migrate(&cfg)?;
+    Ok(())
+}
+
+fn init() -> Result<()> {
+    let cfg = crate::config::Config::load();
+    crate::db::Database::create(&cfg)?;
+    Ok(())
+}
+
 fn config_logging(verbosity: u64) -> Result<()> {
     // Level for this application
     let internal_level = match verbosity {
@@ -139,6 +153,8 @@ fn config_logging(verbosity: u64) -> Result<()> {
 
 fn main() -> Result<()> {
     // Add channel subcommand
+    let sc_init = SubCommand::with_name("init").about("Initialise the database");
+
     let sc_add = SubCommand::with_name("add")
         .about("Add channel")
         .arg(Arg::with_name("chanid").required(true))
@@ -182,8 +198,12 @@ fn main() -> Result<()> {
     // Download subcommand
     let sc_worker = SubCommand::with_name("worker").about("download worker thread test");
 
+    // DB update command
+    let sc_migrate = SubCommand::with_name("migrate").about("update database schema to be current");
+
     // Main command
     let app = App::new("vidl")
+        .subcommand(sc_init)
         .subcommand(sc_add)
         .subcommand(sc_update)
         .subcommand(sc_list)
@@ -191,6 +211,7 @@ fn main() -> Result<()> {
         .subcommand(sc_backup)
         .subcommand(sc_download)
         .subcommand(sc_worker)
+        .subcommand(sc_migrate)
         .arg(
             Arg::with_name("verbose")
                 .short("v")
@@ -224,6 +245,8 @@ fn main() -> Result<()> {
             _ => return Err(anyhow::anyhow!("Unhandled backup subcommand")),
         },
         ("worker", Some(_sub_m)) => crate::worker::main()?,
+        ("init", Some(_sub_m)) => init()?,
+        ("migrate", Some(_sub_m)) => migrate()?,
         _ => {
             return Err(anyhow::anyhow!("Unhandled subcommand"));
         }

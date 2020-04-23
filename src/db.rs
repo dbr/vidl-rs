@@ -41,7 +41,7 @@ impl DBVideoInfo {
         let chan = db
             .conn
             .query_row(
-                "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel FROM video
+                "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration FROM video
                 WHERE id=?1",
                 params![id],
                 |row| {
@@ -55,6 +55,7 @@ impl DBVideoInfo {
                             description: row.get(5)?,
                             thumbnail_url: row.get(6)?,
                             published_at: row.get(7)?,
+                            duration: row.get(9)?,
                         },
                         chanid: row.get(8)?,
                     })
@@ -93,49 +94,7 @@ pub struct Database {
 }
 
 impl Database {
-    fn create_tables(conn: &Connection) -> Result<()> {
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS channel (
-                      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                      chanid        TEXT NOT NULL,
-                      service       TEXT NOT NULL,
-                      title         TEXT NOT NULL,
-                      thumbnail     TEXT NOT NULL,
-                      last_update   DATETIME NULL
-                      )",
-            params![],
-        )
-        .context("Creating channel table")?;
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS video (
-                      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                      channel       INTEGER NOT NULL,
-                      video_id      TEXT NOT NULL,
-                      status        TEXT NOT NULL,
-                      url           TEXT NOT NULL UNIQUE,
-                      title         TEXT NOT NULL,
-                      description   TEXT NOT NULL,
-                      thumbnail     TEXT NOT NULL,
-                      published_at  DATETIME NOT NULL,
-                      FOREIGN KEY(channel) REFERENCES channel(id)
-                      );
-
-            CREATE INDEX idx_video_published_at ON video (
-                published_at
-            );
-            CREATE INDEX idx_video_channel ON video (
-                channel
-            );
-            ",
-            params![],
-        )
-        .context("Creating video table")?;
-
-        Ok(())
-    }
-    /// Opens connection to database, creating tables as necessary
-    pub fn open(cfg: &Config) -> Result<Database> {
+    fn connect(cfg: &Config, create: bool) -> Result<Connection> {
         let path = cfg.db_filepath();
         if let Some(p) = path.parent() {
             if !path.exists() {
@@ -144,16 +103,69 @@ impl Database {
             }
         };
         debug!("Loading DB from {:?}", path);
-        let conn = Connection::open(path)?;
-        Database::create_tables(&conn)?;
+
+        use rusqlite::OpenFlags;
+        let flags = if create {
+            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
+        } else {
+            OpenFlags::SQLITE_OPEN_READ_WRITE
+        };
+        let conn = Connection::open_with_flags(path, flags)?;
+
+        Ok(conn)
+    }
+
+    /// Create a new database
+    pub fn create(cfg: &Config) -> Result<Database> {
+        // Create new database
+        let conn = Database::connect(&cfg, true)?;
+
+        // Create tables
+        let mig = crate::db_migration::get_migrator(&conn);
+        mig.setup()?;
+        mig.upgrade()?;
+
+        // Return connection
         Ok(Database { conn })
+    }
+
+    /// Opens connection to database. Will throw error if schema is updated (can be updated with `Database::migrate`)
+    pub fn open(cfg: &Config) -> Result<Database> {
+        let conn = Database::connect(&cfg, false)?;
+
+        let mig = crate::db_migration::get_migrator(&conn);
+        mig.setup()?;
+
+        if !mig.is_db_current()? {
+            return Err(anyhow::anyhow!(
+                "Database is incorrect version, currently {:?} should be {:?}",
+                mig.get_db_version(),
+                mig.get_latest_version()
+            ));
+        }
+
+        Ok(Database { conn })
+    }
+
+    /// Upgrade database to latest schema version
+    pub fn migrate(cfg: &Config) -> Result<()> {
+        let conn = Database::connect(&cfg, false)?;
+
+        let mig = crate::db_migration::get_migrator(&conn);
+        mig.setup()?;
+
+        mig.upgrade()?;
+
+        Ok(())
     }
 
     /// Opens a non-persistant database in memory. Likely only useful for test cases.
     #[cfg(test)]
-    pub fn open_in_memory() -> Result<Database> {
+    pub fn create_in_memory() -> Result<Database> {
         let conn = Connection::open_in_memory()?;
-        Database::create_tables(&conn)?;
+        let mig = crate::db_migration::get_migrator(&conn);
+        mig.setup()?;
+
         Ok(Database { conn })
     }
 }
@@ -319,8 +331,8 @@ impl Channel {
     pub fn add_video(&self, db: &Database, video: &VideoInfo) -> Result<DBVideoInfo> {
         db.conn
             .execute(
-                "INSERT INTO video (channel, video_id, url, title, description, thumbnail, published_at, status)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO video (channel, video_id, url, title, description, thumbnail, published_at, status, duration)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     self.id,
                     video.id,
@@ -330,6 +342,7 @@ impl Channel {
                     video.thumbnail_url,
                     video.published_at.to_rfc3339(),
                     VideoStatus::New.as_str(), // Default status
+                    video.duration,
                 ],
             )
             .context("Add video query")?;
@@ -369,6 +382,7 @@ impl Channel {
                     description: row.get(5)?,
                     thumbnail_url: row.get(6)?,
                     published_at: row.get(7)?,
+                    duration: row.get(9)?,
                 },
                 chanid: row.get(8)?,
             })
@@ -377,7 +391,7 @@ impl Channel {
         let mut ret: Vec<DBVideoInfo> = vec![];
 
         let mut q = db.conn.prepare(
-            "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel
+            "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration
                 FROM video
                 WHERE channel=?1
                 ORDER BY published_at DESC
@@ -500,6 +514,7 @@ pub fn all_videos(db: &Database, limit: i64, page: i64) -> Result<Vec<DBVideoInf
                 description: row.get(5)?,
                 thumbnail_url: row.get(6)?,
                 published_at: row.get(7)?,
+                duration: row.get(8)?,
             },
             chanid: row.get(8)?,
         })
@@ -508,7 +523,7 @@ pub fn all_videos(db: &Database, limit: i64, page: i64) -> Result<Vec<DBVideoInf
     let mut ret: Vec<DBVideoInfo> = vec![];
 
     let mut q = db.conn.prepare(
-        "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel
+        "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration
             FROM video
             ORDER BY published_at DESC
             LIMIT ?1
@@ -528,7 +543,7 @@ mod tests {
 
     #[test]
     fn test_list_channels() -> Result<()> {
-        let mdb = Database::open_in_memory()?;
+        let mdb = Database::create_in_memory()?;
 
         // Check no channels exist in newly created DB
         {
@@ -583,6 +598,7 @@ mod tests {
                 description: "A ficticious video.\nIt is quite good".into(),
                 thumbnail_url: "http://example.com/vidthumb.jpg".into(),
                 published_at: when,
+                duration: 12341,
             };
             c.add_video(&mdb, &new_video)?;
         }
@@ -601,7 +617,8 @@ mod tests {
                 first.published_at,
                 chrono::DateTime::parse_from_rfc3339("2001-12-30T16:39:57Z")?
                     .with_timezone(&chrono::Utc)
-            )
+            );
+            assert_eq!(first.duration, 12341);
         }
 
         // Create "older" video for latest_video test
@@ -616,6 +633,7 @@ mod tests {
                 description: "Was created a while ago".into(),
                 thumbnail_url: "http://example.com/oldvid.jpg".into(),
                 published_at: when,
+                duration: 0,
             };
             c.add_video(&mdb, &new_video)?;
         }

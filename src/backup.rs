@@ -37,6 +37,7 @@ struct BackupVideoInfo {
     description: String,
     thumbnail_url: String,
     channel_id: i64,
+    duration: i32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -58,6 +59,7 @@ impl From<BackupVideoInfo> for VideoInfo {
             description: src.description,
             thumbnail_url: src.thumbnail_url,
             published_at: when,
+            duration: src.duration,
         }
     }
 }
@@ -73,6 +75,7 @@ impl From<&DBVideoInfo> for BackupVideoInfo {
             publishdate: src.info.published_at.to_rfc3339(),
             description: src.info.description.clone(),
             thumbnail_url: src.info.thumbnail_url.clone(),
+            duration: src.info.duration,
         }
     }
 }
