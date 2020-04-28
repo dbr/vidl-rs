@@ -551,11 +551,10 @@ mod tests {
 
     #[test]
     fn test_list_channels() -> Result<()> {
-        let mdb = Database::create_in_memory(true)?;
         // Create database in memory
+        let mdb = Database::create_in_memory(true)?;
 
-        // Check no channels exist i
-        // Setup migrator tablen newly created DB
+        // Check no channels exist
         {
             let chans = list_channels(&mdb)?;
 
