@@ -114,6 +114,12 @@ pub struct WebVideoInfo<'a> {
     duration: i32,
 }
 
+impl<'a> WebVideoInfo<'a> {
+    pub fn video_duration_str(&self) -> String {
+        format!("{}m{}", self.duration / 60, self.duration % 60)
+    }
+}
+
 fn status_css_class(status: VideoStatus) -> String {
     match status {
         VideoStatus::New => "ytdl-new",
