@@ -522,7 +522,7 @@ pub fn all_videos(db: &Database, limit: i64, page: i64) -> Result<Vec<DBVideoInf
                 description: row.get(5)?,
                 thumbnail_url: row.get(6)?,
                 published_at: row.get(7)?,
-                duration: row.get(8)?,
+                duration: row.get(9)?,
             },
             chanid: row.get(8)?,
         })
