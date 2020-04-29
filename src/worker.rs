@@ -2,7 +2,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 
 use crate::common::VideoStatus;
 use crate::db::{Channel, DBVideoInfo};
@@ -19,88 +19,122 @@ struct Worker {
     num: usize,
 }
 
+fn worker_download(val: &DBVideoInfo) -> Result<()> {
+    let cfg = crate::config::Config::load();
+    let db = crate::db::Database::open(&cfg)?;
+
+    val.set_status(&db, VideoStatus::Downloading)?;
+    let dl = crate::download::download(&val.info);
+
+    match dl {
+        Ok(_) => {
+            info!("Grabbed {:?} successfully", &val.info);
+            val.set_status(&db, crate::common::VideoStatus::Grabbed)?;
+        }
+        Err(e) => {
+            error!("Error downloading {:?} - {:?}", &val.info, e);
+            val.set_status(&db, crate::common::VideoStatus::GrabError)?;
+        }
+    };
+    Ok(())
+}
+
+fn worker_update_check(chan: &Channel) -> Result<()> {
+    let cfg = crate::config::Config::load();
+    let db = crate::db::Database::open(&cfg)?;
+    let last_update = chan.last_update(&db)?;
+    debug!(
+        "Checking channel for update {:?} - last update {:?}",
+        chan, last_update
+    );
+    let time_to_update = if let Some(last_update) = last_update {
+        let now = chrono::Utc::now();
+        let delta = now - last_update;
+        delta > chrono::Duration::minutes(60)
+    } else {
+        // No laste update, so time to update now
+        true
+    };
+
+    if time_to_update {
+        info!("Time to update {:?}", &chan);
+        chan.update(&db)?;
+    };
+
+    Ok(())
+}
+
+fn worker_thumbnail_cache(url: &str) -> Result<()> {
+    // Check if image is already in cache, as it may have been added since queued
+    {
+        let ic = crate::web::IMG_CACHE.lock().unwrap();
+        if ic.contains(url) {
+            debug!("Image already in cache, skipping");
+            return Ok(());
+        }
+    }
+
+    let resp = attohttpc::get(&url).send()?;
+    if !resp.status().is_success() {
+        error!("Failed to grab thumbnail for {}", &url);
+    } else {
+        let ct: String = resp
+            .headers()
+            .get(attohttpc::header::CONTENT_TYPE)
+            .and_then(|x| x.to_str().ok())
+            .unwrap_or("image/jpeg")
+            .into();
+        let data = resp.bytes()?;
+        let img = crate::web::Image {
+            content_type: ct.clone(),
+            data: data.clone(),
+        };
+        {
+            let mut ic = crate::web::IMG_CACHE.lock().unwrap();
+            ic.add(&url, img);
+        };
+    }
+
+    Ok(())
+}
+
 impl Worker {
     fn run(&self) {
         loop {
-            let m = self.recv.lock().unwrap().recv().unwrap();
-            match m {
+            let item = {
+                let lock = self.recv.lock().unwrap();
+                let m = lock.recv().unwrap();
+                m
+                // Drop lock
+            };
+
+            match item {
                 WorkItem::Shutdown => {
                     info!("Shutting down worker {}", self.num);
                     return;
                 }
 
                 WorkItem::Download(ref val) => {
-                    println!("Worker {}: Download {:#?}", self.num, val);
-                    let cfg = crate::config::Config::load();
-                    let db = crate::db::Database::open(&cfg).unwrap();
-
-                    val.set_status(&db, VideoStatus::Downloading).unwrap();
-                    let dl = crate::download::download(&val.info);
-
-                    match dl {
-                        Ok(_) => {
-                            info!("Grabbed {:?} successfully", &val.info);
-                            val.set_status(&db, crate::common::VideoStatus::Grabbed)
-                                .unwrap()
-                        }
-                        Err(e) => {
-                            error!("Error downloading {:?} - {:?}", &val.info, e);
-                            val.set_status(&db, crate::common::VideoStatus::GrabError)
-                                .unwrap();
-                        }
-                    };
+                    debug!("Worker {}: Download {:#?}", self.num, val);
+                    match worker_download(val) {
+                        Ok(_) => (),
+                        Err(e) => error!("Error in worker {}: {:#?}", self.num, e),
+                    }
                 }
 
                 WorkItem::UpdateCheck(ref chan) => {
-                    let cfg = crate::config::Config::load();
-                    let db = crate::db::Database::open(&cfg).unwrap();
-                    let last_update = chan.last_update(&db).unwrap();
-                    debug!(
-                        "Checking channel for update {:?} - last update {:?}",
-                        chan, last_update
-                    );
-                    let time_to_update = if let Some(last_update) = last_update {
-                        let now = chrono::Utc::now();
-                        let delta = now - last_update;
-                        delta > chrono::Duration::minutes(60)
-                    } else {
-                        // No laste update, so time to update now
-                        true
-                    };
-
-                    if time_to_update {
-                        info!("Time to update {:?}", &chan);
-                        chan.update(&db).unwrap();
-                    };
+                    debug!("Worker {}: Update check {:#?}", self.num, chan);
+                    match worker_update_check(chan) {
+                        Ok(_) => (),
+                        Err(e) => error!("Error in worker {}: {:#?}", self.num, e),
+                    }
                 }
 
                 WorkItem::ThumbnailCache(ref url) => {
-                    // Check if image is already in cache, as it may have been added since queued
-                    {
-                        let ic = crate::web::IMG_CACHE.lock().unwrap();
-                        if ic.contains(url) {
-                            debug!("Image already in cache, skipping");
-                            return;
-                        }
-                    }
-
-                    let resp = attohttpc::get(&url).send().unwrap();
-                    if !resp.status().is_success() {
-                        error!("Failed to grab thumbnail for {}", &url);
-                    } else {
-                        let ct: String = resp
-                            .headers()
-                            .get(attohttpc::header::CONTENT_TYPE)
-                            .unwrap()
-                            .to_str()
-                            .unwrap()
-                            .into();
-                        let data = resp.bytes().unwrap();
-                        let img = crate::web::Image {
-                            content_type: ct.clone(),
-                            data: data.clone(),
-                        };
-                        crate::web::IMG_CACHE.lock().unwrap().add(&url, img);
+                    trace!("Worker {}: Cache thumbnail {:#?}", self.num, url);
+                    match worker_thumbnail_cache(url) {
+                        Ok(_) => (),
+                        Err(e) => error!("Error in worker {}: {:#?}", self.num, e),
                     }
                 }
             }
