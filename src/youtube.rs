@@ -133,6 +133,16 @@ fn request_data<T: serde::de::DeserializeOwned + std::fmt::Debug>(url: &str) -> 
     ret
 }
 
+/// Return the "default" quality thumbnail (falling back to the first)
+fn choose_best_thumbnail(thumbs: &Vec<YTThumbnailInfo>) -> &YTThumbnailInfo {
+    for t in thumbs {
+        if t.quality == Some("default".into()) {
+            return t;
+        }
+    }
+    return &thumbs[0];
+}
+
 /// Object to query data about given channel
 #[derive(Debug)]
 pub struct YoutubeQuery<'a> {
@@ -153,9 +163,11 @@ impl<'a> YoutubeQuery<'a> {
 
         let d: YTChannelInfo = request_data(&url)?;
 
+        let thumbnail = choose_best_thumbnail(&d.author_thumbnails).url.clone();
+
         Ok(ChannelMetadata {
             title: d.author.clone(),
-            thumbnail: d.author_thumbnails[0].url.clone(),
+            thumbnail: thumbnail,
             description: d.description.clone(),
         })
     }
@@ -180,7 +192,7 @@ impl<'a> YoutubeQuery<'a> {
                     url: format!("http://youtube.com/watch?v={id}", id = d.video_id),
                     title: d.title.clone(),
                     description: d.description.clone(),
-                    thumbnail_url: d.video_thumbnails.first().unwrap().url.clone(),
+                    thumbnail_url: choose_best_thumbnail(&d.video_thumbnails).url.clone(),
                     published_at: chrono::Utc.timestamp(d.published, 0),
                     duration: d.length_seconds,
                 })
