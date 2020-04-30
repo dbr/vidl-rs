@@ -547,7 +547,12 @@ pub fn all_videos(
                 .map(|s| format!(r#"status = "{}""#, s.as_str()))
                 .collect::<Vec<String>>()
                 .join(" OR ");
-            s
+
+            if status.len() > 1 {
+                format!("({})", s)
+            } else {
+                s
+            }
         } else {
             "true".into()
         }
@@ -559,7 +564,7 @@ pub fn all_videos(
         &format!(r#"SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration
             FROM video
             WHERE title LIKE ("%" || ?3 || "%")
-                AND ({})
+                AND {}
             ORDER BY published_at DESC
             LIMIT ?1
             OFFSET ?2
