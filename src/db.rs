@@ -560,16 +560,20 @@ pub fn all_videos(
         "true".into()
     };
 
-    let mut q = db.conn.prepare(
-        &format!(r#"SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration
-            FROM video
-            WHERE title LIKE ("%" || ?3 || "%")
-                AND {}
-            ORDER BY published_at DESC
-            LIMIT ?1
-            OFFSET ?2
-            "#, status_pred),
-    )?;
+    let sql = format!(
+        r#"SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration
+        FROM video
+        WHERE title LIKE ("%" || ?3 || "%")
+            AND {}
+        ORDER BY published_at DESC
+        LIMIT ?1
+        OFFSET ?2
+        "#,
+        status_pred
+    );
+    dbg!(&sql);
+
+    let mut q = db.conn.prepare(&sql)?;
     let mapped = q.query_map(
         params![
             limit,
