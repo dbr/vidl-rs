@@ -119,7 +119,7 @@ pub fn export(output: Option<&str>) -> Result<()> {
     let chans = crate::db::list_channels(&db)?;
     let chans_ser: Vec<BackupChannel> = chans.iter().map(|v| v.into()).collect();
 
-    let vids = crate::db::all_videos(&db, std::i64::MAX, 0)?;
+    let vids = crate::db::all_videos(&db, std::i64::MAX, 0, None)?;
     let vids_ser: Vec<BackupVideoInfo> = vids.iter().map(|v| v.into()).collect();
 
     let back = Backup {

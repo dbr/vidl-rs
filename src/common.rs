@@ -68,7 +68,7 @@ impl ChannelID {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum VideoStatus {
     /// New video
     New,

@@ -188,7 +188,7 @@ fn page_list_videos(id: Option<i64>, page: i64) -> Result<Response> {
         let videos = c.all_videos(&db, 50, page)?;
         (Some(c), videos)
     } else {
-        let videos = crate::db::all_videos(&db, 50, page)?;
+        let videos = crate::db::all_videos(&db, 50, page, None)?;
         (None, videos)
     };
 

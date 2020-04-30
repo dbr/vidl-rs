@@ -510,7 +510,17 @@ pub fn list_channels(db: &Database) -> Result<Vec<Channel>> {
     Ok(ret)
 }
 
-pub fn all_videos(db: &Database, limit: i64, page: i64) -> Result<Vec<DBVideoInfo>> {
+pub struct FilterParams {
+    name_contains: Option<String>,
+    status: Option<HashSet<VideoStatus>>,
+}
+
+pub fn all_videos(
+    db: &Database,
+    limit: i64,
+    page: i64,
+    filter: Option<FilterParams>,
+) -> Result<Vec<DBVideoInfo>> {
     let mapper = |row: &rusqlite::Row| {
         Ok(DBVideoInfo {
             id: row.get(0)?,
@@ -530,15 +540,39 @@ pub fn all_videos(db: &Database, limit: i64, page: i64) -> Result<Vec<DBVideoInf
 
     let mut ret: Vec<DBVideoInfo> = vec![];
 
+    let status_pred: String = if let Some(ref filter) = filter {
+        if let Some(status) = &filter.status {
+            let s = status
+                .iter()
+                .map(|s| format!(r#"status = "{}""#, s.as_str()))
+                .collect::<Vec<String>>()
+                .join(" OR ");
+            s
+        } else {
+            "true".into()
+        }
+    } else {
+        "true".into()
+    };
+
     let mut q = db.conn.prepare(
-        "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration
+        &format!(r#"SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration
             FROM video
+            WHERE title LIKE ("%" || ?3 || "%")
+                AND ({})
             ORDER BY published_at DESC
             LIMIT ?1
             OFFSET ?2
-            ",
+            "#, status_pred),
     )?;
-    let mapped = q.query_map(params![limit, page * limit], mapper)?;
+    let mapped = q.query_map(
+        params![
+            limit,
+            page * limit,
+            filter.and_then(|x| Some(x.name_contains.unwrap_or("".into()))),
+        ],
+        mapper,
+    )?;
     for r in mapped {
         ret.push(r?);
     }
@@ -653,6 +687,183 @@ mod tests {
         {
             let latest = c.last_n_video_urls(&mdb, 50)?;
             assert_eq!(latest.len(), 2);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_filter() -> Result<()> {
+        use crate::common::VideoStatus;
+
+        let mdb = Database::create_in_memory(true)?;
+
+        let cid = ChannelID::Youtube(crate::common::YoutubeID {
+            id: "testchannel".into(),
+        });
+
+        let c = Channel::create(
+            &mdb,
+            &cid,
+            "test channel",
+            "http://example.com/thumbnail.jpg",
+        )?;
+
+        // Create new video
+        {
+            let when = chrono::DateTime::parse_from_rfc3339("2001-12-30T16:39:57Z")?
+                .with_timezone(&chrono::Utc);
+
+            let new_video = VideoInfo {
+                id: "an id".into(),
+                url: "http://example.com/watch?v=abc123".into(),
+                title: "Good video!".into(),
+                description: "A ficticious video.\nIt is quite good".into(),
+                thumbnail_url: "http://example.com/vidthumb.jpg".into(),
+                published_at: when,
+                duration: 12341,
+            };
+            c.add_video(&mdb, &new_video)?;
+        }
+
+        {
+            let when = chrono::DateTime::parse_from_rfc3339("2001-12-30T16:39:57Z")?
+                .with_timezone(&chrono::Utc);
+
+            let new_video = VideoInfo {
+                id: "an id".into(),
+                url: "http://example.com/watch?v=def321".into(),
+                title: "Another good video!".into(),
+                description: "A ficticious video.\nIt is quite good".into(),
+                thumbnail_url: "http://example.com/vidthumb.jpg".into(),
+                published_at: when,
+                duration: 12341,
+            };
+            c.add_video(&mdb, &new_video)?;
+        }
+
+        {
+            let when = chrono::DateTime::parse_from_rfc3339("2001-12-30T16:39:57Z")?
+                .with_timezone(&chrono::Utc);
+
+            let new_video = VideoInfo {
+                id: "an id".into(),
+                url: "http://example.com/watch?v=xyz789".into(),
+                title: "A grab error".into(),
+                description: "A ficticious video.\nIt is quite good".into(),
+                thumbnail_url: "http://example.com/vidthumb.jpg".into(),
+                published_at: when,
+                duration: 12341,
+            };
+            let v = c.add_video(&mdb, &new_video)?;
+            v.set_status(&mdb, crate::common::VideoStatus::GrabError)?;
+        }
+
+        {
+            let mut st = HashSet::new();
+            st.insert(VideoStatus::GrabError);
+            assert_eq!(
+                all_videos(
+                    &mdb,
+                    99,
+                    0,
+                    Some(FilterParams {
+                        name_contains: None,
+                        status: Some(st),
+                    })
+                )?
+                .len(),
+                1
+            );
+        }
+
+        {
+            let mut st = HashSet::new();
+            st.insert(VideoStatus::New);
+            assert_eq!(
+                all_videos(
+                    &mdb,
+                    99,
+                    0,
+                    Some(FilterParams {
+                        name_contains: None,
+                        status: Some(st),
+                    })
+                )?
+                .len(),
+                2
+            );
+        }
+
+        {
+            let mut st = HashSet::new();
+            st.insert(VideoStatus::Downloading);
+            assert_eq!(
+                all_videos(
+                    &mdb,
+                    99,
+                    0,
+                    Some(FilterParams {
+                        name_contains: None,
+                        status: Some(st),
+                    })
+                )?
+                .len(),
+                0
+            );
+        }
+
+        {
+            let mut st = HashSet::new();
+            st.insert(VideoStatus::New);
+            assert_eq!(
+                all_videos(
+                    &mdb,
+                    99,
+                    0,
+                    Some(FilterParams {
+                        name_contains: Some("Another".into()),
+                        status: Some(st),
+                    })
+                )?
+                .len(),
+                1
+            );
+        }
+
+        {
+            let mut st = HashSet::new();
+            st.insert(VideoStatus::New);
+            assert_eq!(
+                all_videos(
+                    &mdb,
+                    99,
+                    0,
+                    Some(FilterParams {
+                        name_contains: Some("A".into()),
+                        status: None,
+                    })
+                )?
+                .len(),
+                2
+            );
+        }
+
+        {
+            let mut st = HashSet::new();
+            st.insert(VideoStatus::New);
+            assert_eq!(
+                all_videos(
+                    &mdb,
+                    99,
+                    0,
+                    Some(FilterParams {
+                        name_contains: Some("Blahblah".into()),
+                        status: None,
+                    })
+                )?
+                .len(),
+                0
+            );
         }
         Ok(())
     }
