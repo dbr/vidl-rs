@@ -540,6 +540,7 @@ pub fn all_videos(
 
     let mut ret: Vec<DBVideoInfo> = vec![];
 
+    // Create query snippet like: (status = "NE" OR status = "GE")
     let status_pred: String = if let Some(ref filter) = filter {
         if let Some(status) = &filter.status {
             let s = status
@@ -571,7 +572,6 @@ pub fn all_videos(
         "#,
         status_pred
     );
-    dbg!(&sql);
 
     let mut q = db.conn.prepare(&sql)?;
     let mapped = q.query_map(
