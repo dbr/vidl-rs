@@ -554,10 +554,10 @@ pub fn all_videos(
                 s
             }
         } else {
-            "true".into()
+            "1".into() // 1 i.e true
         }
     } else {
-        "true".into()
+        "1".into() // 1 i.e true
     };
 
     let sql = format!(
