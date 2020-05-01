@@ -196,7 +196,7 @@ fn main() -> Result<()> {
     let sc_download = SubCommand::with_name("download").about("enqueues videos for download");
 
     // Download subcommand
-    let sc_worker = SubCommand::with_name("worker").about("download worker thread test");
+    let sc_worker = SubCommand::with_name("worker").about("downloads queued videos");
 
     // DB update command
     let sc_migrate = SubCommand::with_name("migrate").about("update database schema to be current");

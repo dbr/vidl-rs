@@ -23,7 +23,19 @@ fn worker_download(val: &DBVideoInfo) -> Result<()> {
     let cfg = crate::config::Config::load();
     let db = crate::db::Database::open(&cfg)?;
 
+    // Re-retrieve video info from DB in case it has changed since queuing
+    let val = DBVideoInfo::get_by_sqlid(&db, val.id)?;
+
+    // Only proceed with download if still `Queued`
+    if val.status != VideoStatus::Queued {
+        info!("Video already been downloaded, skipping - {:?}", &val);
+        return Ok(());
+    }
+
+    // Mark as downloading
     val.set_status(&db, VideoStatus::Downloading)?;
+
+    // Download
     let dl = crate::download::download(&val.info);
 
     match dl {
@@ -196,9 +208,23 @@ impl Drop for WorkerPool {
 pub fn main() -> Result<()> {
     let cfg = crate::config::Config::load();
     let db = crate::db::Database::open(&cfg)?;
-    let v = crate::db::DBVideoInfo::get_by_sqlid(&db, 1)?;
+
+    let mut statuses = std::collections::HashSet::new();
+    statuses.insert(crate::common::VideoStatus::Queued);
+    let queued = crate::db::all_videos(
+        &db,
+        std::i64::MAX,
+        0,
+        Some(crate::db::FilterParams {
+            name_contains: None,
+            status: Some(statuses),
+        }),
+    )?;
 
     let p = WorkerPool::start();
-    p.enqueue(WorkItem::Download(v));
+    for q in queued {
+        p.enqueue(WorkItem::Download(q));
+    }
+
     Ok(())
 }

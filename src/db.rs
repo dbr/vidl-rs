@@ -511,8 +511,8 @@ pub fn list_channels(db: &Database) -> Result<Vec<Channel>> {
 }
 
 pub struct FilterParams {
-    name_contains: Option<String>,
-    status: Option<HashSet<VideoStatus>>,
+    pub name_contains: Option<String>,
+    pub status: Option<HashSet<VideoStatus>>,
 }
 
 pub fn all_videos(
