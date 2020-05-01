@@ -337,7 +337,6 @@ fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Respon
 fn serve(workers: Arc<Mutex<WorkerPool>>) -> Result<()> {
     let cfg = Config::load();
 
-    println!("yep");
     let addr = format!("{}:{}", cfg.web_host, cfg.web_port);
     let url = format!("http://{}", &addr);
     info!("Listening on {}", &url);
