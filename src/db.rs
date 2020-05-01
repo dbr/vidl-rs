@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use anyhow::{Context, Result};
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 use rusqlite::types::FromSql;
 use rusqlite::{params, Connection};
 use thiserror::Error;
@@ -540,7 +540,9 @@ pub fn all_videos(
 
     let mut ret: Vec<DBVideoInfo> = vec![];
 
-    // Create query snippet like: (status = "NE" OR status = "GE")
+    // Create query snippet like:
+    // (status = "NE" OR status = "GE")
+    // Or `1` as placeholder if no statuses are set.
     let status_pred: String = if let Some(ref filter) = filter {
         if let Some(status) = &filter.status {
             let s = status
@@ -573,12 +575,14 @@ pub fn all_videos(
         status_pred
     );
 
+    trace!("all_videos query SQL {}", &sql);
+
     let mut q = db.conn.prepare(&sql)?;
     let mapped = q.query_map(
         params![
             limit,
             page * limit,
-            filter.and_then(|x| Some(x.name_contains.unwrap_or("".into()))),
+            filter.and_then(|x| x.name_contains).unwrap_or("".into()),
         ],
         mapper,
     )?;
@@ -734,6 +738,7 @@ mod tests {
             c.add_video(&mdb, &new_video)?;
         }
 
+        // Video 2
         {
             let when = chrono::DateTime::parse_from_rfc3339("2001-12-30T16:39:57Z")?
                 .with_timezone(&chrono::Utc);
@@ -750,6 +755,7 @@ mod tests {
             c.add_video(&mdb, &new_video)?;
         }
 
+        // Video 3
         {
             let when = chrono::DateTime::parse_from_rfc3339("2001-12-30T16:39:57Z")?
                 .with_timezone(&chrono::Utc);
@@ -767,6 +773,7 @@ mod tests {
             v.set_status(&mdb, crate::common::VideoStatus::GrabError)?;
         }
 
+        // Searching by status only
         {
             let mut st = HashSet::new();
             st.insert(VideoStatus::GrabError);
@@ -785,6 +792,7 @@ mod tests {
             );
         }
 
+        // Searching by another status
         {
             let mut st = HashSet::new();
             st.insert(VideoStatus::New);
@@ -803,6 +811,7 @@ mod tests {
             );
         }
 
+        // Searching by status which has no videos
         {
             let mut st = HashSet::new();
             st.insert(VideoStatus::Downloading);
@@ -821,6 +830,7 @@ mod tests {
             );
         }
 
+        // Searching by title only
         {
             let mut st = HashSet::new();
             st.insert(VideoStatus::New);
@@ -839,6 +849,7 @@ mod tests {
             );
         }
 
+        // Another search by title
         {
             let mut st = HashSet::new();
             st.insert(VideoStatus::New);
@@ -857,6 +868,7 @@ mod tests {
             );
         }
 
+        // Search by title finds nothing
         {
             let mut st = HashSet::new();
             st.insert(VideoStatus::New);
@@ -874,6 +886,34 @@ mod tests {
                 0
             );
         }
+
+        // No filtering
+        {
+            let mut st = HashSet::new();
+            st.insert(VideoStatus::New);
+            assert_eq!(all_videos(&mdb, 99, 0, None)?.len(), 3);
+        }
+
+        // Filtering with no specified parameters
+        {
+            let mut st = HashSet::new();
+            st.insert(VideoStatus::New);
+            assert_eq!(
+                all_videos(
+                    &mdb,
+                    99,
+                    0,
+                    Some(FilterParams {
+                        name_contains: None,
+                        status: None
+                    })
+                )?
+                .len(),
+                3
+            );
+        }
+
+        // Good
         Ok(())
     }
 }
