@@ -77,7 +77,7 @@ fn list(chan_num: Option<&str>) -> Result<()> {
         // List specific channel
         let channels = crate::db::list_channels(&db)?;
         for c in channels {
-            if &format!("{}", c.id) == chan_num {
+            if format!("{}", c.id) == chan_num {
                 for v in c.all_videos(&db, 50, 0)? {
                     let v = v.info;
                     println!(
@@ -106,7 +106,7 @@ fn list(chan_num: Option<&str>) -> Result<()> {
 
 fn migrate() -> Result<()> {
     let cfg = crate::config::Config::load();
-    let _db = crate::db::Database::migrate(&cfg)?;
+    crate::db::Database::migrate(&cfg)?;
     Ok(())
 }
 

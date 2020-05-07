@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use anyhow::{Context, Result};
 use chrono::offset::TimeZone;
 
@@ -140,7 +142,7 @@ fn choose_best_thumbnail(thumbs: &Vec<YTThumbnailInfo>) -> &YTThumbnailInfo {
             return t;
         }
     }
-    return &thumbs[0];
+    &thumbs[0]
 }
 
 /// Object to query data about given channel
@@ -202,7 +204,6 @@ impl<'a> YoutubeQuery<'a> {
         }
 
         let mut page_num = 1;
-        use std::collections::VecDeque;
         let mut completed = false;
         let mut current_items: VecDeque<VideoInfo> = VecDeque::new();
 
