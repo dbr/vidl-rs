@@ -480,6 +480,7 @@ impl Channel {
 
         for v in new_videos {
             debug!("Adding {0}", v.title);
+            // TODO: Stop on "already seen video" error
             match self.add_video(&db, &v) {
                 Ok(_) => (),
                 Err(e) => error!("Error adding video {:?} - {:?}", &v, e),
