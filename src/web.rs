@@ -267,15 +267,11 @@ fn page_thumbnail(
 
     let image = {
         let mut ic = IMG_CACHE.lock().unwrap();
-        let image = ic.get(url, workers)?;
-        image.clone()
+        ic.get(url, workers)?
     };
     match image {
         ImageCacheResponse::Redirect(url) => Ok(Response::redirect_303(url)),
-        ImageCacheResponse::Image(image) => Ok(Response::from_data(
-            image.content_type.clone(),
-            image.data.clone(),
-        )),
+        ImageCacheResponse::Image(image) => Ok(Response::from_data(image.content_type, image.data)),
     }
 }
 

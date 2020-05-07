@@ -98,8 +98,8 @@ fn worker_thumbnail_cache(url: &str) -> Result<()> {
             .into();
         let data = resp.bytes()?;
         let img = crate::web::Image {
-            content_type: ct.clone(),
-            data: data.clone(),
+            content_type: ct,
+            data: data,
         };
         {
             let mut ic = crate::web::IMG_CACHE.lock().unwrap();
@@ -115,8 +115,8 @@ impl Worker {
         loop {
             let item = {
                 let lock = self.recv.lock().unwrap();
-                let m = lock.recv().unwrap();
-                m
+                lock.recv().unwrap()
+
                 // Drop lock
             };
 

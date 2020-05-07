@@ -23,7 +23,7 @@ impl Config {
         let db_filepath = config_dir.join("vidl.sqlite3");
 
         Config {
-            db_filepath: db_filepath,
+            db_filepath,
             web_host: "0.0.0.0".into(),
             web_port: "8448".into(),
             extra_youtubedl_args: vec!["--restrict-filenames".into(), "--continue".into()],

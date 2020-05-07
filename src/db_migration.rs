@@ -72,9 +72,8 @@ impl Migration for AddDuration {
 }
 
 pub fn get_migrator(db: &rusqlite::Connection) -> Migrator {
-    let mig = Migrator {
+    Migrator {
         migs: vec![Box::new(CreateBase {}), Box::new(AddDuration {})],
         db: &db,
-    };
-    mig
+    }
 }
