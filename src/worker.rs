@@ -218,6 +218,7 @@ pub fn main() -> Result<()> {
         Some(crate::db::FilterParams {
             name_contains: None,
             status: Some(statuses),
+            chanid: None,
         }),
     )?;
 

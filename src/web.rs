@@ -1,6 +1,7 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 
 use anyhow::Result;
 use askama::Template;
@@ -11,7 +12,7 @@ use serde_derive::Serialize;
 
 use crate::common::VideoStatus;
 use crate::config::Config;
-use crate::db::{Channel, DBVideoInfo};
+use crate::db::{Channel, DBVideoInfo, FilterParams};
 use crate::worker::WorkerPool;
 
 #[derive(Clone)]
@@ -180,15 +181,15 @@ struct VideoListTemplate<'a> {
     page: i64,
 }
 
-fn page_list_videos(id: Option<i64>, page: i64) -> Result<Response> {
+fn page_list_videos(id: Option<i64>, page: i64, filter: Option<FilterParams>) -> Result<Response> {
     let cfg = crate::config::Config::load();
     let db = crate::db::Database::open(&cfg)?;
     let (c, videos): (Option<Channel>, Vec<DBVideoInfo>) = if let Some(id) = id {
         let c = crate::db::Channel::get_by_sqlid(&db, id)?;
-        let videos = c.all_videos(&db, 50, page)?;
+        let videos = c.all_videos(&db, 50, page, filter)?;
         (Some(c), videos)
     } else {
-        let videos = crate::db::all_videos(&db, 50, page, None)?;
+        let videos = crate::db::all_videos(&db, 50, page, filter)?;
         (None, videos)
     };
 
@@ -275,6 +276,17 @@ fn page_thumbnail(
     }
 }
 
+/// Given a space separated list of statuses like `GE,NE`, parses each comma-separated status into actual `VideoStatus` object
+fn parse_statuses(statuses: &str) -> Result<HashSet<VideoStatus>> {
+    let mut ret = HashSet::new();
+    let split = statuses.split(",");
+    for s in split {
+        let status = VideoStatus::from_str(s)?;
+        ret.insert(status);
+    }
+    Ok(ret)
+}
+
 fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Response {
     if let Some(request) = request.remove_prefix("/static") {
         // Can do dynamic serving of files with:
@@ -304,11 +316,23 @@ fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Respon
         },
         (GET) ["/channel/_all"] => {
             let page: i64 = request.get_param("page").and_then(|x| x.parse::<i64>().ok()).unwrap_or(0);
-            page_list_videos(None, page)
+            let statuses = request.get_param("status").and_then(|x| parse_statuses(&x).ok());
+            let filter = FilterParams {
+                name_contains: request.get_param("title"),
+                status: statuses,
+                chanid: None,
+            };
+            page_list_videos(None, page, Some(filter))
         },
         (GET) ["/channel/{chanid}", chanid: i64] => {
             let page: i64 = request.get_param("page").and_then(|x| x.parse::<i64>().ok()).unwrap_or(0);
-            page_list_videos(Some(chanid), page)
+            let statuses = request.get_param("status").and_then(|x| parse_statuses(&x).ok());
+            let filter = FilterParams {
+                name_contains: request.get_param("title"),
+                status: statuses,
+                chanid: None, // TODO: Can set this to chanid and remove branching here
+            };
+            page_list_videos(Some(chanid), page, Some(filter))
         },
         (POST) ["/download/{videoid}", videoid: i64] => {
             page_download_video(videoid, workers.clone())

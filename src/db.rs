@@ -378,40 +378,27 @@ impl Channel {
         Ok(set)
     }
 
-    pub fn all_videos(&self, db: &Database, limit: i64, page: i64) -> Result<Vec<DBVideoInfo>> {
-        let mapper = |row: &rusqlite::Row| {
-            Ok(DBVideoInfo {
-                id: row.get(0)?,
-                status: row.get(1)?,
-                info: VideoInfo {
-                    id: row.get(2)?,
-                    url: row.get(3)?,
-                    title: row.get(4)?,
-                    description: row.get(5)?,
-                    thumbnail_url: row.get(6)?,
-                    published_at: row.get(7)?,
-                    duration: row.get(9)?,
-                },
-                chanid: row.get(8)?,
-            })
+    pub fn all_videos(
+        &self,
+        db: &Database,
+        limit: i64,
+        page: i64,
+        filter: Option<FilterParams>,
+    ) -> Result<Vec<DBVideoInfo>> {
+        let filter = match filter {
+            Some(f) => Some(FilterParams {
+                name_contains: f.name_contains,
+                status: f.status,
+                chanid: Some(self.id),
+            }),
+            None => Some(FilterParams {
+                name_contains: None,
+                status: None,
+                chanid: Some(self.id),
+            }),
         };
 
-        let mut ret: Vec<DBVideoInfo> = vec![];
-
-        let mut q = db.conn.prepare(
-            "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration
-                FROM video
-                WHERE channel=?1
-                ORDER BY published_at DESC
-                LIMIT ?2
-                OFFSET ?3
-                ",
-        )?;
-        let mapped = q.query_map(params![self.id, limit, page * limit], mapper)?;
-        for r in mapped {
-            ret.push(r?);
-        }
-        Ok(ret)
+        all_videos(&db, limit, page, filter)
     }
 
     pub fn update(&self, db: &Database) -> Result<()> {
@@ -514,6 +501,7 @@ pub fn list_channels(db: &Database) -> Result<Vec<Channel>> {
 pub struct FilterParams {
     pub name_contains: Option<String>,
     pub status: Option<HashSet<VideoStatus>>,
+    pub chanid: Option<i64>,
 }
 
 pub fn all_videos(
@@ -564,16 +552,27 @@ pub fn all_videos(
         "1".into() // 1 i.e true
     };
 
+    let chanid_pred: String = if let Some(ref filter) = filter {
+        if let Some(cid) = filter.chanid {
+            format!("channel = {}", cid)
+        } else {
+            "1".into()
+        }
+    } else {
+        "1".into()
+    };
+
     let sql = format!(
         r#"SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration
         FROM video
         WHERE title LIKE ("%" || ?3 || "%")
             AND {}
+            AND {}
         ORDER BY published_at DESC
         LIMIT ?1
         OFFSET ?2
         "#,
-        status_pred
+        status_pred, chanid_pred,
     );
 
     trace!("all_videos query SQL {}", &sql);
@@ -635,7 +634,7 @@ mod tests {
 
         // Check no videos exist
         {
-            let vids = c.all_videos(&mdb, 50, 0)?;
+            let vids = c.all_videos(&mdb, 50, 0, None)?;
             assert_eq!(vids.len(), 0);
         }
 
@@ -664,7 +663,7 @@ mod tests {
 
         // Check video now exists
         {
-            let vids = c.all_videos(&mdb, 50, 0)?;
+            let vids = c.all_videos(&mdb, 50, 0, None)?;
             assert_eq!(vids.len(), 1);
             let first = &vids[0].info;
             assert_eq!(first.id, "an id");
@@ -786,6 +785,7 @@ mod tests {
                     Some(FilterParams {
                         name_contains: None,
                         status: Some(st),
+                        chanid: None,
                     })
                 )?
                 .len(),
@@ -805,6 +805,7 @@ mod tests {
                     Some(FilterParams {
                         name_contains: None,
                         status: Some(st),
+                        chanid: None,
                     })
                 )?
                 .len(),
@@ -824,6 +825,7 @@ mod tests {
                     Some(FilterParams {
                         name_contains: None,
                         status: Some(st),
+                        chanid: None,
                     })
                 )?
                 .len(),
@@ -843,6 +845,7 @@ mod tests {
                     Some(FilterParams {
                         name_contains: Some("Another".into()),
                         status: Some(st),
+                        chanid: None,
                     })
                 )?
                 .len(),
@@ -862,6 +865,7 @@ mod tests {
                     Some(FilterParams {
                         name_contains: Some("A".into()),
                         status: None,
+                        chanid: None,
                     })
                 )?
                 .len(),
@@ -881,6 +885,7 @@ mod tests {
                     Some(FilterParams {
                         name_contains: Some("Blahblah".into()),
                         status: None,
+                        chanid: None,
                     })
                 )?
                 .len(),
@@ -906,7 +911,8 @@ mod tests {
                     0,
                     Some(FilterParams {
                         name_contains: None,
-                        status: None
+                        status: None,
+                        chanid: None,
                     })
                 )?
                 .len(),

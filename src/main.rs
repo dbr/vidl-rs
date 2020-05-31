@@ -78,7 +78,7 @@ fn list(chan_num: Option<&str>) -> Result<()> {
         let channels = crate::db::list_channels(&db)?;
         for c in channels {
             if format!("{}", c.id) == chan_num {
-                for v in c.all_videos(&db, 50, 0)? {
+                for v in c.all_videos(&db, 50, 0, None)? {
                     let v = v.info;
                     println!(
                         "ID: {}\nTitle: {}\nURL: {}\nPublished: {}\nThumbnail: {}\nDescription: {}\n----",
