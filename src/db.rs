@@ -475,6 +475,19 @@ impl Channel {
         }
         Ok(())
     }
+
+    /// Deletes channel and all videos it contains
+    pub fn delete(self, db: &Database) -> Result<()> {
+        db.conn
+            .execute("DELETE FROM video WHERE channel=?1", params![self.id])
+            .context("Failed to delete videos in channel")?;
+
+        db.conn
+            .execute("DELETE FROM channel WHERE id=?1", params![self.id])
+            .context("Failed to delete channel")?;
+
+        Ok(())
+    }
 }
 
 /// All channels present in database
@@ -921,6 +934,104 @@ mod tests {
         }
 
         // Good
+        Ok(())
+    }
+
+    #[test]
+    fn test_deleting() -> Result<()> {
+        let mdb = Database::create_in_memory(true)?;
+
+        let c = Channel::create(
+            &mdb,
+            &ChannelID::Youtube(crate::common::YoutubeID {
+                id: "testchannel".into(),
+            }),
+            "test channel",
+            "http://example.com/thumbnail.jpg",
+        )?;
+
+        let c2 = Channel::create(
+            &mdb,
+            &ChannelID::Youtube(crate::common::YoutubeID {
+                id: "secondchannel".into(),
+            }),
+            "second channel",
+            "http://example.com/second.jpg",
+        )?;
+
+        // Create new video
+        {
+            let when = chrono::DateTime::parse_from_rfc3339("2001-12-30T16:39:57Z")?
+                .with_timezone(&chrono::Utc);
+
+            let new_video = VideoInfo {
+                id: "1st".into(),
+                url: "http://example.com/watch?v=abc123".into(),
+                title: "Good video!".into(),
+                description: "A ficticious video.\nIt is quite good".into(),
+                thumbnail_url: "http://example.com/vidthumb.jpg".into(),
+                published_at: when,
+                duration: 12341,
+            };
+            dbg!("first");
+            c.add_video(&mdb, &new_video)?;
+        }
+
+        // Video 2
+        {
+            let when = chrono::DateTime::parse_from_rfc3339("2001-12-30T16:39:57Z")?
+                .with_timezone(&chrono::Utc);
+
+            let new_video = VideoInfo {
+                id: "2nd".into(),
+                url: "http://example.com/watch?v=def321".into(),
+                title: "Another good video!".into(),
+                description: "A ficticious video.\nIt is quite good".into(),
+                thumbnail_url: "http://example.com/vidthumb.jpg".into(),
+                published_at: when,
+                duration: 12341,
+            };
+            dbg!("second");
+            c.add_video(&mdb, &new_video)?;
+        }
+
+        // Video 3
+        {
+            let when = chrono::DateTime::parse_from_rfc3339("2001-12-30T16:39:57Z")?
+                .with_timezone(&chrono::Utc);
+
+            let new_video = VideoInfo {
+                id: "3rd".into(),
+                url: "http://example.com/watch?v=xyz7890".into(),
+                title: "A grab error".into(),
+                description: "A third video".into(),
+                thumbnail_url: "http://example.com/vidthumb.jpg".into(),
+                published_at: when,
+                duration: 12341,
+            };
+            c2.add_video(&mdb, &new_video)?;
+        }
+
+        // Check there are three videos
+        {
+            let videos = all_videos(&mdb, 9999, 0, None)?;
+            assert_eq!(videos.len(), 3);
+
+            assert_eq!(c.all_videos(&mdb, 9999, 0, None)?.len(), 2);
+            assert_eq!(c2.all_videos(&mdb, 9999, 0, None)?.len(), 1);
+        }
+
+        // Delete one channel
+        c.delete(&mdb)?;
+
+        // Check videos remain in other channels
+        {
+            let videos = all_videos(&mdb, 9999, 0, None)?;
+            assert_eq!(videos.len(), 1);
+
+            assert_eq!(c2.all_videos(&mdb, 9999, 0, None)?.len(), 1);
+        }
+
         Ok(())
     }
 }
