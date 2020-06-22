@@ -52,6 +52,21 @@ fn add(name: &str, service_str: &str) -> Result<()> {
     }
 }
 
+/// Remove channel and videos
+fn remove(chan_num: Option<&str>) -> Result<()> {
+    let cfg = crate::config::Config::load();
+    let db = db::Database::open(&cfg)?;
+
+    let id = chan_num.unwrap().parse()?;
+
+    let chan = db::Channel::get_by_sqlid(&db, id)?;
+
+    info!("Removing channel {:?}", &chan);
+    chan.delete(&db)?;
+
+    Ok(())
+}
+
 /// List videos
 fn list(chan_num: Option<&str>) -> Result<()> {
     let cfg = crate::config::Config::load();
@@ -136,9 +151,10 @@ fn config_logging(verbosity: u64) -> Result<()> {
 }
 
 pub fn main() -> Result<()> {
-    // Add channel subcommand
+    // Init DB subcommand
     let sc_init = SubCommand::with_name("init").about("Initialise the database");
 
+    // Add channel subcommand
     let sc_add = SubCommand::with_name("add")
         .about("Add channel")
         .arg(Arg::with_name("chanid").required(true))
@@ -149,6 +165,10 @@ pub fn main() -> Result<()> {
                 .possible_values(&["youtube", "vimeo"])
                 .value_name("youtube|vimeo"),
         );
+
+    let sc_remove = SubCommand::with_name("remove")
+        .about("remove given channel and all videos in it")
+        .arg(Arg::with_name("id").required(true));
 
     // Update subcommand
     let sc_update = SubCommand::with_name("update").about("Updates all added channel info");
@@ -189,6 +209,7 @@ pub fn main() -> Result<()> {
     let app = App::new("vidl")
         .subcommand(sc_init)
         .subcommand(sc_add)
+        .subcommand(sc_remove)
         .subcommand(sc_update)
         .subcommand(sc_list)
         .subcommand(sc_web)
@@ -220,6 +241,7 @@ pub fn main() -> Result<()> {
                 .value_of("service")
                 .expect("required arg service missing"),
         )?,
+        ("remove", Some(sub_m)) => remove(sub_m.value_of("id"))?,
         ("update", Some(_sub_m)) => update()?,
         ("list", Some(sub_m)) => list(sub_m.value_of("id"))?,
         ("web", Some(_sub_m)) => crate::web::main()?,
