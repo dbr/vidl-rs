@@ -6,6 +6,7 @@
 //!   recreated from scratch (except the video status).
 //! - Migrations will most often be used to add columns, which are difficult to
 //!   write downgrade queries for (as there is no `DELETE COLUMN` in SQLite)
+
 use rusqlite::params;
 use rusqlite::OptionalExtension;
 
