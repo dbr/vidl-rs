@@ -307,6 +307,7 @@ fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Respon
                 include_str!("../static/tippy_6.js"),
                 "application/javascript",
             )),
+            "/luxon.min.js" => Some((include_str!("../static/luxon.min.js"), "text/css")),
             _ => None,
         };
         return match x {

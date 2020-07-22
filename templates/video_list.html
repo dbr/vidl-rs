@@ -1,17 +1,19 @@
 {% extends "base.html" %}
 
 {%- macro navbuttons() -%}
-    <a class="pure-button ytdl-nextprev {% if page == 0 %} pure-button-disabled{%endif%}" href="?page={{page-1}}">
-        Prev page
-    </a>
-    <a class="pure-button ytdl-nextprev {% if videos.videos.len() == 0 %} pure-button-disabled{%endif%}" href="?page={{page+1}}">
-        Next page
-    </a>
+<a class="pure-button ytdl-nextprev {% if page == 0 %} pure-button-disabled{%endif%}" href="?page={{page-1}}">
+    Prev page
+</a>
+<a class="pure-button ytdl-nextprev {% if videos.videos.len() == 0 %} pure-button-disabled{%endif%}"
+    href="?page={{page+1}}">
+    Next page
+</a>
 {%- endmacro -%}
 
 {% block body %}
 <script src="/static/popperjs_core_2.js"></script>
 <script src="/static/tippy_6.js"></script>
+<script src="/static/luxon.min.js"></script>
 <script>
     function vidl_grab_video(video_id) {
         fetch(
@@ -27,6 +29,21 @@
             document.getElementById("vidl-video-" + video_id).classList.add("ytdl-graberror");
         });
     }
+
+    function format_date(str) {
+        let d = luxon.DateTime.fromString(str, "YYYY-MM-DD");
+        return d.toFormat("DDDD") + " (" + d.toRelative() + ")";
+    }
+
+    function populate_dates() {
+        let things = document.getElementsByClassName("vidl-date-str");
+        for (let item of things) {
+            item.textContent = format_date(item.textContent);
+        }
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+        populate_dates();
+    });
 </script>
 <div id="content">
 
@@ -34,59 +51,60 @@
 
     <table class="pure-table pure-table-horizontal">
         {% for (date, day_videos) in videos.videos %}
-            <tr>
-                <td>{{date}}</td>
-            </tr>
-            {% for c in day_videos %}
-                <tr id="vidl-video-{{c.id}}" class="{{ c.status_class }}" style="border: 2px solid white;">
-                    <td>
-                        <div class="ytdl-videoinfo" style="width: 100%; height: 100%;">
-                            <img src="/thumbnail/video/{{c.id}}" style="float: left; padding: 4px; vertical-align: baseline;" width="32">
-                            <a href="/download/{{ c.id }}" onclick="vidl_grab_video({{ c.id }}); return false;">
-                                <!-- FIXME: Wont currently work without JS as /download/1 needs POST'd -->
-                                <div style="padding: 4px">
-                                    {{c.title}}
-                                </div>
-                            </a>
-                            <br/>
-                            <small>{{c.video_duration_str()}}.
-                                {{c.published_at}}</small>
-                            <small>
-                                on
-                                <a href="/channel/{{c.channel.id}}">
-                                    <img height="16" src="/thumbnail/channel/{{c.channel.id}}" width="16"/>
-                                    {{c.channel.title}}
-                                </a>
-                            </small>
+        <tr>
+            <td><span class="vidl-date-str">{{date}}</span></td>
+        </tr>
+        {% for c in day_videos %}
+        <tr id="vidl-video-{{c.id}}" class="{{ c.status_class }}" style="border: 2px solid white;">
+            <td>
+                <div class="ytdl-videoinfo" style="width: 100%; height: 100%;">
+                    <img src="/thumbnail/video/{{c.id}}" style="float: left; padding: 4px; vertical-align: baseline;"
+                        width="32">
+                    <a href="/download/{{ c.id }}" onclick="vidl_grab_video({{ c.id }}); return false;">
+                        <!-- FIXME: Wont currently work without JS as /download/1 needs POST'd -->
+                        <div style="padding: 4px">
+                            {{c.title}}
                         </div>
-                    </td>
-                    <td>
-                        <span id="vidl-tippy-content-{{c.id}}">
-                            <img src="/thumbnail/video/{{c.id}}" width="256"/>
-                            <br>
-                            {{c.description}}
-                        </span>
-                        <span id="vidl-tippy-tooltip-{{c.id}}">Info</span>
-                        <script>
+                    </a>
+                    <br />
+                    <small>{{c.video_duration_str()}}.
+                        {{c.published_at}}</small>
+                    <small>
+                        on
+                        <a href="/channel/{{c.channel.id}}">
+                            <img height="16" src="/thumbnail/channel/{{c.channel.id}}" width="16" />
+                            {{c.channel.title}}
+                        </a>
+                    </small>
+                </div>
+            </td>
+            <td>
+                <span id="vidl-tippy-content-{{c.id}}">
+                    <img src="/thumbnail/video/{{c.id}}" width="256" />
+                    <br>
+                    {{c.description}}
+                </span>
+                <span id="vidl-tippy-tooltip-{{c.id}}">Info</span>
+                <script>
                     tippy(document.getElementById("vidl-tippy-tooltip-{{c.id}}"), {
                         placement: 'left',
                         content: document.getElementById("vidl-tippy-content-{{c.id}}"),
                     });
                 </script>
-                    </td>
-                    <td>
-                        <a href="{{c.url}}" class="pure-button button-info">View</a>
-                    </td>
-                    <td>
-                        <a class="pure-button button-warning" href="#">Ignore</a>
-                    </td>
-                </tr>
-            {% endfor %}
+            </td>
+            <td>
+                <a href="{{c.url}}" class="pure-button button-info">View</a>
+            </td>
+            <td>
+                <a class="pure-button button-warning" href="#">Ignore</a>
+            </td>
+        </tr>
+        {% endfor %}
         {% endfor %}
         {% if videos.videos.len() == 0 %}
-            <tr>
-                <td>No more!</td>
-            </tr>
+        <tr>
+            <td>No more!</td>
+        </tr>
         {% endif %}
     </table>
 
