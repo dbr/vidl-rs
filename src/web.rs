@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -153,7 +153,7 @@ impl<'a> From<(DBVideoInfo, &'a WebChannel)> for WebVideoInfo<'a> {
 
 #[derive(Debug, Serialize)]
 pub struct WebChannelVideos<'a> {
-    videos: Vec<WebVideoInfo<'a>>,
+    videos: BTreeMap<String, Vec<WebVideoInfo<'a>>>,
 }
 
 #[derive(Template)]
@@ -204,16 +204,21 @@ fn page_list_videos(id: Option<i64>, page: i64, filter: Option<FilterParams>) ->
         }
     }
 
+    // Group by date
+    let mut by_date: BTreeMap<String, Vec<WebVideoInfo>> = BTreeMap::new();
+    for v in videos {
+        let timestamp = v.info.published_at.date().format("%Y-%m-%d").to_string();
+        let wc = &chans[&v.chanid];
+        by_date
+            .entry(timestamp)
+            .or_insert_with(Vec::new)
+            .push((v, wc).into());
+        // by_date.insert(timestamp, (v, wc).into());
+    }
+
     // Each WebChannelVideo is VideoInfo plus a reference to the channel it belongs to
-    let ret: WebChannelVideos = WebChannelVideos {
-        videos: videos
-            .into_iter()
-            .map(|v| {
-                let wc = &chans[&v.chanid];
-                (v, wc).into()
-            })
-            .collect(),
-    };
+
+    let ret: WebChannelVideos = WebChannelVideos { videos: by_date };
 
     let t = VideoListTemplate {
         videos: &ret,
