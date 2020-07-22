@@ -89,20 +89,33 @@ pub fn import() -> Result<()> {
     let lock = stdin.lock();
     let back: Backup = serde_json::from_reader(lock)?;
 
-    let mut chanmap: HashMap<i64, Channel> = HashMap::new();
-    for chan in back.channels {
-        let service = Service::from_str(&chan.service)?;
-        let cid = service.get_channel_id(&chan.chanid);
-        let db_chan = crate::db::Channel::get(&db, &cid)
-            .or_else(|_| crate::db::Channel::create(&db, &cid, &chan.chanid, &chan.icon))?;
-        chanmap.insert(db_chan.id, db_chan);
+    let mut backup_id_to_channel_mapper: HashMap<i64, Channel> = HashMap::new();
+    for back_chan in back.channels {
+        // Get service
+        let service = Service::from_str(&back_chan.service)?;
+        // Get channel ID
+        let cid = service.get_channel_id(&back_chan.chanid);
+
+        // Get or create channel
+        let db_chan = crate::db::Channel::get(&db, &cid).or_else(|_| {
+            crate::db::Channel::create(&db, &cid, &back_chan.chanid, &back_chan.icon)
+        })?;
+
+        // Create a mapping from backup-channel-id to database
+        backup_id_to_channel_mapper.insert(back_chan.id, db_chan);
     }
 
     for backup_vid in back.videos {
-        let db_chan = &chanmap[&backup_vid.channel_id];
+        // Get channel object
+        let db_chan = &backup_id_to_channel_mapper[&backup_vid.channel_id];
 
+        // Parse video status
         let status = VideoStatus::from_str(&backup_vid.status)?;
+
+        // Convert video
         let v: VideoInfo = backup_vid.into();
+
+        // Insert into database
         match db_chan.add_video(&db, &v) {
             Ok(dbv) => dbv.set_status(&db, status)?,
             Err(e) => eprintln!("{:?}", e),
