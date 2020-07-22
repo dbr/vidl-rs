@@ -1,0 +1,39 @@
+# basic container
+FROM rustlang/rust:nightly
+
+# labels
+LABEL maintainer = "Daniel Muehlbachler <daniel.muehlbachler@niftyside.com>"
+LABEL name = "kcov with rust nightly"
+LABEL description = "This container contains kcov based on rustlang/rust:nightly."
+
+
+# install pre-requisites
+RUN apt-get update \
+  && apt-get install --yes \
+    wget \
+    cmake \
+    gcc \
+    libcurl4-openssl-dev \
+    libelf-dev \
+    libdw-dev \
+    binutils-dev \
+    libiberty-dev \
+    jq \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN wget https://github.com/SimonKagstrom/kcov/archive/v38.tar.gz \
+  && tar xzf v38.tar.gz \
+  && cd kcov-* \
+  && mkdir build \
+  && cd build \
+  && cmake -DCMAKE_BUILD_TYPE=Release .. \
+  && make \
+  && make install \
+  && cd ../.. \
+  && rm -rf kcov-*
+
+RUN cargo install cargo-kcov
+
+WORKDIR /app
+
+CMD sh

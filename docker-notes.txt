@@ -1,0 +1,1 @@
+docker build -t vidl . && time docker image save vidl:latest > /Volumes/misc/temp/vidl-image-test
