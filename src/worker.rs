@@ -51,6 +51,8 @@ fn worker_download(val: &DBVideoInfo) -> Result<()> {
     Ok(())
 }
 
+/// Called regularly to check if a channel needs updated.
+/// Then either updates the channel or does nothing.
 fn worker_update_check(chan: &Channel) -> Result<()> {
     let cfg = crate::config::Config::load();
     let db = crate::db::Database::open(&cfg)?;
@@ -64,7 +66,7 @@ fn worker_update_check(chan: &Channel) -> Result<()> {
         let delta = now - last_update;
         delta > chrono::Duration::minutes(60)
     } else {
-        // No laste update, so time to update now
+        // No last update, so time to update now
         true
     };
 
