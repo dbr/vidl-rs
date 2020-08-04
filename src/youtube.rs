@@ -12,7 +12,7 @@ fn api_prefix() -> String {
     let prefix: &str = &mockito::server_url();
 
     #[cfg(not(test))]
-    let prefix: &str = "https://invidio.us";
+    let prefix: &str = "https://invidious.snopyta.org";
 
     prefix.into()
 }
