@@ -35,11 +35,11 @@ fn update() -> Result<()> {
 /// Add channel
 fn add(name: &str, service_str: &str) -> Result<()> {
     let service = Service::from_str(service_str)?;
-    let cid = crate::youtube::find_channel_id(name, &service)?;
+    let cid = crate::source::youtube::find_channel_id(name, &service)?;
 
     match &cid {
         ChannelID::Youtube(ytid) => {
-            let yt = crate::youtube::YoutubeQuery::new(&ytid);
+            let yt = crate::source::youtube::YoutubeQuery::new(&ytid);
 
             let meta = yt.get_metadata()?;
             let cfg = crate::config::Config::load();

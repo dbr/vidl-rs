@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use crate::common::{ChannelID, Service, VideoStatus};
 use crate::config::Config;
-use crate::youtube::{ChannelMetadata, VideoInfo};
+use crate::source::base::{ChannelMetadata, VideoInfo};
 
 #[derive(Error, Debug)]
 pub enum DatabaseError {
@@ -432,7 +432,7 @@ impl Channel {
             id: self.chanid.clone(),
         };
 
-        let yt = crate::youtube::YoutubeQuery::new(&chanid);
+        let yt = crate::source::youtube::YoutubeQuery::new(&chanid);
         let meta = yt.get_metadata();
 
         match meta {
@@ -453,7 +453,7 @@ impl Channel {
             .last_n_video_urls(&db, 50)
             .context("Failed to find latest video URLs")?;
 
-        let mut new_videos: Vec<crate::youtube::VideoInfo> = vec![];
+        let mut new_videos: Vec<crate::source::base::VideoInfo> = vec![];
         for v in videos {
             let v = v?;
 

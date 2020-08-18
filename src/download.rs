@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use log::debug;
 
 use crate::config::Config;
-use crate::youtube::VideoInfo;
+use crate::source::base::VideoInfo;
 
 pub fn download(vid: &VideoInfo) -> Result<()> {
     let cfg = Config::load();

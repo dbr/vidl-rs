@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use crate::common::{Service, VideoStatus};
 use crate::config::Config;
 use crate::db::{Channel, DBVideoInfo, Database};
-use crate::youtube::VideoInfo;
+use crate::source::base::VideoInfo;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct BackupChannel {

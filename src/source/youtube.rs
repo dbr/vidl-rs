@@ -6,6 +6,7 @@ use chrono::offset::TimeZone;
 use log::{debug, trace};
 
 use crate::common::{Service, YoutubeID};
+use crate::source::base::{ChannelMetadata, VideoInfo};
 
 fn api_prefix() -> String {
     #[cfg(test)]
@@ -79,35 +80,6 @@ struct YTChannelInfo {
     author_banners: Vec<YTThumbnailInfo>,
 }
 
-/// Important info about channel
-#[derive(Debug)]
-pub struct ChannelMetadata {
-    pub title: String,
-    pub thumbnail: String,
-    pub description: String,
-}
-
-/// Important info about a video
-pub struct VideoInfo {
-    pub id: String,
-    pub url: String,
-    pub title: String,
-    pub description: String,
-    pub thumbnail_url: String,
-    pub published_at: chrono::DateTime<chrono::Utc>,
-    pub duration: i32,
-}
-
-impl std::fmt::Debug for VideoInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "VideoInfo{{id: {:?}, title: {:?}, url: {:?}, published_at: {:?}}}",
-            self.id, self.title, self.url, self.published_at,
-        )
-    }
-}
-
 fn request_data<T: serde::de::DeserializeOwned + std::fmt::Debug>(url: &str) -> Result<T> {
     fn subreq<T: serde::de::DeserializeOwned + std::fmt::Debug>(url: &str) -> Result<T> {
         debug!("Retrieving URL {}", &url);
@@ -155,7 +127,9 @@ impl<'a> YoutubeQuery<'a> {
     pub fn new(chan_id: &YoutubeID) -> YoutubeQuery {
         YoutubeQuery { chan_id }
     }
+}
 
+impl<'a> YoutubeQuery<'a> {
     pub fn get_metadata(&self) -> Result<ChannelMetadata> {
         let url = format!(
             "{prefix}/api/v1/channels/{chanid}",

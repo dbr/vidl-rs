@@ -12,9 +12,9 @@ mod db;
 mod db_migration;
 mod download;
 mod libmig;
+mod source;
 mod web;
 mod worker;
-mod youtube;
 
 fn main() -> anyhow::Result<()> {
     Ok(cli::main()?)
