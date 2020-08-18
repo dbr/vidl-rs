@@ -6,7 +6,7 @@ use chrono::offset::TimeZone;
 use log::{debug, trace};
 
 use crate::common::{Service, YoutubeID};
-use crate::source::base::{ChannelMetadata, VideoInfo};
+use crate::source::base::{ChannelData, ChannelMetadata, VideoInfo};
 
 fn api_prefix() -> String {
     #[cfg(test)]
@@ -129,8 +129,8 @@ impl<'a> YoutubeQuery<'a> {
     }
 }
 
-impl<'a> YoutubeQuery<'a> {
-    pub fn get_metadata(&self) -> Result<ChannelMetadata> {
+impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
+    fn get_metadata(&self) -> Result<ChannelMetadata> {
         let url = format!(
             "{prefix}/api/v1/channels/{chanid}",
             prefix = api_prefix(),
@@ -148,7 +148,7 @@ impl<'a> YoutubeQuery<'a> {
         })
     }
 
-    pub fn videos<'i>(&'i self) -> impl Iterator<Item = Result<VideoInfo>> + 'i {
+    fn videos<'i>(&'i self) -> Box<dyn Iterator<Item = Result<VideoInfo>> + 'i> {
         // GET /api/v1/channels/:ucid/videos?page=1
 
         fn get_page(chanid: &str, page: i32) -> Result<Vec<VideoInfo>> {
@@ -214,7 +214,7 @@ impl<'a> YoutubeQuery<'a> {
                 nextup
             }
         });
-        it
+        Box::new(it)
     }
 }
 

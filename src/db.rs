@@ -8,7 +8,9 @@ use thiserror::Error;
 
 use crate::common::{ChannelID, Service, VideoStatus};
 use crate::config::Config;
+use crate::source::base::ChannelData;
 use crate::source::base::{ChannelMetadata, VideoInfo};
+use crate::source::invidious::YoutubeQuery;
 
 #[derive(Error, Debug)]
 pub enum DatabaseError {
@@ -402,38 +404,23 @@ impl Channel {
     }
 
     pub fn update(&self, db: &Database) -> Result<()> {
-        // Check if channel needs updating
-        let last_update = self.last_update(&db)?;
-        let needs_update = if let Some(last_update) = last_update {
-            let now = chrono::Utc::now();
-            let delta = now - last_update;
-            let interval = chrono::Duration::hours(6); // TODO: Move this to config?
-            delta > interval
-        } else {
-            // Never been updated before, so needs update now
-            true
-        };
-
-        // Skip if no updated required
-        if !needs_update {
-            info!("Channel updated recently, skipping {:?}", &self);
-            return Ok(());
-        }
-
         // Set updated time now (even in case of failure)
         self.set_last_update(&db)?;
 
-        if self.service.as_str() != "youtube" {
-            // FIXME
-            error!("Ignoring Vimeo channel {:?}", &self);
-            return Ok(());
-        }
         let chanid = crate::common::YoutubeID {
             id: self.chanid.clone(),
         };
 
-        let yt = crate::source::youtube::YoutubeQuery::new(&chanid);
-        let meta = yt.get_metadata();
+        let api: Box<dyn ChannelData> = match self.service {
+            Service::Youtube => Box::new(YoutubeQuery::new(&chanid)),
+            Service::Vimeo => {
+                // FIXME
+                error!("Ignoring Vimeo channel {:?}", &self);
+                return Ok(());
+            }
+        };
+
+        let meta = api.get_metadata();
 
         match meta {
             Ok(meta) => self.update_metadata(&db, &meta)?,
@@ -447,7 +434,7 @@ impl Channel {
             }
         }
 
-        let videos = yt.videos();
+        let videos = api.videos();
 
         let seen_videos = self
             .last_n_video_urls(&db, 50)
