@@ -6,7 +6,26 @@ use crate::common::{ChannelID, Service};
 use crate::db;
 use crate::worker::{WorkItem, WorkerPool};
 
-fn update() -> Result<()> {
+fn update_required(chan: &db::Channel, db: &db::Database) -> Result<bool> {
+    let last_update = chan.last_update(db)?;
+    match last_update {
+        Some(last_update) => {
+            let now = chrono::Utc::now();
+            let delta = now - last_update;
+            let due_for_update = delta > chrono::Duration::minutes(60);
+            let shedule_due = if due_for_update {
+                // FIXME: Somethign like chan.id % 60 == current_minute
+                true
+            } else {
+                false
+            };
+            Ok(shedule_due)
+        }
+        None => Ok(true),
+    }
+}
+
+fn update(force: bool) -> Result<()> {
     // Load config
     debug!("Loading config");
     let cfg = crate::config::Config::load();
@@ -22,8 +41,10 @@ fn update() -> Result<()> {
 
     // Queue update
     for chan in channels.into_iter() {
-        info!("Updating channel: {:?}", &chan);
-        work.enqueue(WorkItem::UpdateCheck(chan));
+        if update_required(&chan, &db)? {
+            info!("Updating channel: {:?}", &chan);
+            work.enqueue(WorkItem::Update(chan));
+        }
     }
 
     // Wait for queue to empty
@@ -171,7 +192,13 @@ pub fn main() -> Result<()> {
         .arg(Arg::with_name("id").required(true));
 
     // Update subcommand
-    let sc_update = SubCommand::with_name("update").about("Updates all added channel info");
+    let sc_update = SubCommand::with_name("update")
+        .about("Updates all added channel info")
+        .arg(
+            Arg::with_name("force")
+                .short("f")
+                .help("Checks for new data even if already updated recently"),
+        );
 
     // List subcommand
     let sc_list = SubCommand::with_name("list")
@@ -242,7 +269,7 @@ pub fn main() -> Result<()> {
                 .expect("required arg service missing"),
         )?,
         ("remove", Some(sub_m)) => remove(sub_m.value_of("id"))?,
-        ("update", Some(_sub_m)) => update()?,
+        ("update", Some(sub_m)) => update(sub_m.is_present("force"))?,
         ("list", Some(sub_m)) => list(sub_m.value_of("id"))?,
         ("web", Some(_sub_m)) => crate::web::main()?,
         ("backup", Some(sub_m)) => match sub_m.subcommand() {

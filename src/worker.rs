@@ -10,7 +10,7 @@ use crate::db::{Channel, DBVideoInfo};
 pub enum WorkItem {
     Download(DBVideoInfo),
     Shutdown,
-    UpdateCheck(Channel),
+    Update(Channel),
     ThumbnailCache(String),
 }
 
@@ -53,7 +53,7 @@ fn worker_download(val: &DBVideoInfo) -> Result<()> {
 
 /// Called regularly to check if a channel needs updated.
 /// Then either updates the channel or does nothing.
-fn worker_update_check(chan: &Channel) -> Result<()> {
+fn worker_update(chan: &Channel) -> Result<()> {
     let cfg = crate::config::Config::load();
     let db = crate::db::Database::open(&cfg)?;
     let last_update = chan.last_update(&db)?;
@@ -61,10 +61,12 @@ fn worker_update_check(chan: &Channel) -> Result<()> {
         "Checking channel for update {:?} - last update {:?}",
         chan, last_update
     );
+
+    // Check there hasn't been a recent update
     let time_to_update = if let Some(last_update) = last_update {
         let now = chrono::Utc::now();
         let delta = now - last_update;
-        delta > chrono::Duration::minutes(60)
+        delta > chrono::Duration::minutes(59)
     } else {
         // No last update, so time to update now
         true
@@ -136,9 +138,9 @@ impl Worker {
                     }
                 }
 
-                WorkItem::UpdateCheck(ref chan) => {
-                    debug!("Worker {}: Update check {:#?}", self.num, chan);
-                    match worker_update_check(chan) {
+                WorkItem::Update(ref chan) => {
+                    debug!("Worker {}: Updating {:#?}", self.num, chan);
+                    match worker_update(chan) {
                         Ok(_) => (),
                         Err(e) => error!("Error in worker {}: {:#?}", self.num, e),
                     }
