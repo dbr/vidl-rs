@@ -42,9 +42,9 @@ fn update(force: bool) -> Result<()> {
 
     // Queue update
     for chan in channels.into_iter() {
-        if update_required(&chan, &db)? {
+        if force || update_required(&chan, &db)? {
             info!("Updating channel: {:?}", &chan);
-            work.enqueue(WorkItem::Update(chan));
+            work.enqueue(WorkItem::Update(chan, force));
         }
     }
 
