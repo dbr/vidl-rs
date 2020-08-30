@@ -10,7 +10,7 @@ use crate::common::{ChannelID, Service, VideoStatus};
 use crate::config::Config;
 use crate::source::base::ChannelData;
 use crate::source::base::{ChannelMetadata, VideoInfo};
-use crate::source::invidious::YoutubeQuery;
+use crate::source::ytscrape::ScrapeQuery;
 
 #[derive(Error, Debug)]
 pub enum DatabaseError {
@@ -412,7 +412,7 @@ impl Channel {
         };
 
         let api: Box<dyn ChannelData> = match self.service {
-            Service::Youtube => Box::new(YoutubeQuery::new(&chanid)),
+            Service::Youtube => Box::new(ScrapeQuery::new(&chanid)),
             Service::Vimeo => {
                 // FIXME
                 error!("Ignoring Vimeo channel {:?}", &self);
@@ -434,14 +434,15 @@ impl Channel {
             }
         }
 
-        let videos = api.videos();
-
         let seen_videos = self
             .last_n_video_urls(&db, 50)
             .context("Failed to find latest video URLs")?;
 
+        trace!("Last seen video URL's: {:?}", &seen_videos);
+
         let mut new_videos: Vec<crate::source::base::VideoInfo> = vec![];
-        for v in videos {
+
+        for v in api.videos() {
             let v = v?;
 
             if seen_videos.contains(&v.url) {
@@ -449,11 +450,13 @@ impl Channel {
                 break;
             }
 
+            trace!("New video {:?}", &v);
             new_videos.push(v);
         }
 
         for v in new_videos {
             debug!("Adding {0}", v.title);
+            trace!("{:?}", &v);
             // TODO: Stop on "already seen video" error
             match self.add_video(&db, &v) {
                 Ok(_) => (),

@@ -3,13 +3,14 @@ authors = ["dbr <dbr.onix@gmail.com>"]
 edition = "2018"
 name = "vidl"
 version = "0.1.0"
+
 [dependencies]
 anyhow = "1"
 attohttpc = "*"
 chrono = "0.4"
 clap = "*"
 fern = "*"
-log = "*"
+log = "0.4"
 serde = "*"
 serde_derive = "*"
 serde_json = "1.0"
@@ -19,13 +20,17 @@ rouille = "3.0"
 lazy_static = "1.4"
 thiserror = "1.0"
 askama = "0.8"
+yt-chanvids = "1.2.5"
 
 [patch.crates-io]
 # Patch to newer version than the latest released 3.0.0, contains websocket CPU fix and poll_timeout
 rouille = { git = 'https://github.com/tomaka/rouille', rev = 'e9692e1b19c8d25a742129a16bbe826c686ab274' }
+# Fork with separated API
+yt-chanvids = { git = "https://github.com/dbr/yt-chanvids", rev = '6a9269293adaf86744958c2ba0d98aef329c9c1f' }
 
 [dev-dependencies]
 mockito = "0"
+env_logger = "0.7"
 
 [dependencies.rusqlite]
 features = ["chrono"]
