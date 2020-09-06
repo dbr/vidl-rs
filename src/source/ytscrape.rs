@@ -21,7 +21,7 @@ impl<'a> ChannelData for ScrapeQuery<'a> {
         Ok(ChannelMetadata {
             title: c.title,
             thumbnail: c.author_thumbnail,
-            description: "".into(),
+            description: c.description,
         })
     }
 
