@@ -15,7 +15,7 @@ fn update_required(chan: &db::Channel, db: &db::Database) -> Result<bool> {
             let delta = now - last_update;
             let due_for_update = delta > chrono::Duration::minutes(60);
             let shedule_due = if due_for_update {
-                // FIXME: Somethign like chan.id % 60 == current_minute
+                // FIXME: Something like chan.id % 60 == current_minute
                 true
             } else {
                 false
@@ -36,7 +36,7 @@ fn update(force: bool) -> Result<()> {
 
     // Get list of channels
     let channels = db::list_channels(&db)?;
-    if channels.len() == 0 {
+    if channels.is_empty() {
         warn!("No channels yet added");
     }
 

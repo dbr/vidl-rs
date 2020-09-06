@@ -40,7 +40,7 @@ impl<'a> ChannelData for ScrapeQuery<'a> {
                 let details = yt_chanvids::YtVideoDetailScraper::from_id(&link.id).get();
                 let info = VideoInfo {
                     id: link.id.clone(),
-                    url: format!("http://youtube.com/watch?v={}", &link.id),
+                    url: format!("http://youtube.com/watch?v={}", &link.id), // Construct URL to be consistent with existing DB entries
                     title: link.title,
                     description: details.description,
                     thumbnail_url: link.thumbnail,
