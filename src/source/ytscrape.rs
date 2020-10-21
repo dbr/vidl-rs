@@ -56,3 +56,15 @@ impl<'a> ChannelData for ScrapeQuery<'a> {
         Box::new(it)
     }
 }
+
+/// Find channel ID either from a username or ID
+use crate::common::{ChannelID, Service};
+pub fn find_channel_id(name: &str, service: &Service) -> Result<ChannelID> {
+    match service {
+        Service::Youtube => {
+            let info = yt_chanvids::YtChannelDetailScraper::from_id(&name).get();
+            Ok(ChannelID::Youtube(YoutubeID { id: name.into() }))
+        }
+        Service::Vimeo => Err(anyhow::anyhow!("Not yet implemented!")), // FIXME: This method belongs outside of youtube.rs
+    }
+}
