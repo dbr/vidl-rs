@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use anyhow::{Context, Result};
-use log::{debug, error, info, trace};
+use log::{debug, error, trace};
 use rusqlite::types::FromSql;
 use rusqlite::{params, Connection};
 use thiserror::Error;
@@ -325,6 +325,26 @@ impl Channel {
             )
             .context("Failed to update last_update time")?;
         Ok(())
+    }
+
+    /// Determines if an update for this channel is due based on `last_update` time
+    pub fn update_required(&self, db: &Database) -> Result<bool> {
+        let last_update = self.last_update(&db)?;
+        match last_update {
+            Some(last_update) => {
+                let now = chrono::Utc::now();
+                let delta = now - last_update;
+                let due_for_update = delta > chrono::Duration::minutes(60);
+                let shedule_due = if due_for_update {
+                    // FIXME: Something like chan.id % 60 == current_minute
+                    true
+                } else {
+                    false
+                };
+                Ok(shedule_due)
+            }
+            None => Ok(true),
+        }
     }
 
     pub fn update_metadata(&self, db: &Database, meta: &ChannelMetadata) -> Result<()> {

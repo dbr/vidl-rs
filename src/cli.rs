@@ -7,25 +7,6 @@ use crate::db;
 use crate::source::base::ChannelData;
 use crate::worker::{WorkItem, WorkerPool};
 
-fn update_required(chan: &db::Channel, db: &db::Database) -> Result<bool> {
-    let last_update = chan.last_update(db)?;
-    match last_update {
-        Some(last_update) => {
-            let now = chrono::Utc::now();
-            let delta = now - last_update;
-            let due_for_update = delta > chrono::Duration::minutes(60);
-            let shedule_due = if due_for_update {
-                // FIXME: Something like chan.id % 60 == current_minute
-                true
-            } else {
-                false
-            };
-            Ok(shedule_due)
-        }
-        None => Ok(true),
-    }
-}
-
 fn update(force: bool) -> Result<()> {
     // Load config
     debug!("Loading config");
@@ -42,7 +23,7 @@ fn update(force: bool) -> Result<()> {
 
     // Queue update
     for chan in channels.into_iter() {
-        if force || update_required(&chan, &db)? {
+        if force || chan.update_required(&db)? {
             info!("Updating channel: {:?}", &chan);
             work.enqueue(WorkItem::Update(chan, force));
         }
