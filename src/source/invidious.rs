@@ -6,7 +6,7 @@ use chrono::offset::TimeZone;
 use log::{debug, trace};
 
 use crate::common::{Service, YoutubeID};
-use crate::source::base::{ChannelData, ChannelMetadata, VideoInfo};
+use crate::source::base::{ChannelMetadata, VideoInfo};
 
 fn api_prefix() -> String {
     #[cfg(test)]
@@ -247,6 +247,7 @@ pub fn find_channel_id(name: &str, service: &Service) -> Result<ChannelID> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::source::base::ChannelData;
 
     #[test]
     fn test_basic_find() -> Result<()> {
