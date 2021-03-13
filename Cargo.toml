@@ -20,13 +20,13 @@ rouille = "3.0"
 lazy_static = "1.4"
 thiserror = "1.0"
 askama = "0.8"
-yt-chanvids = "1.2.5"
+yt-chanvids = "1.3.0"
 
 [patch.crates-io]
 # Patch to newer version than the latest released 3.0.0, contains websocket CPU fix and poll_timeout
 rouille = { git = 'https://github.com/tomaka/rouille', rev = 'e9692e1b19c8d25a742129a16bbe826c686ab274' }
-# Fork with separated API
-yt-chanvids = { git = "https://github.com/dbr/yt-chanvids", rev = '6a9269293adaf86744958c2ba0d98aef329c9c1f' }
+# Fork'd version of https://github.com/daniel-araujo/yt-chanvids 
+yt-chanvids = { git = "https://github.com/dbr/yt-chanvids", rev = 'c1265c941ce0ce15f58f639aa4bcb823ce3bd65c' }
 
 [dev-dependencies]
 mockito = "0"
