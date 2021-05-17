@@ -282,6 +282,27 @@ fn page_thumbnail(
     }
 }
 
+fn page_refresh(workers: Arc<Mutex<WorkerPool>>) -> Result<Response> {
+    let cfg = crate::config::Config::load();
+    let db = crate::db::Database::open(&cfg)?;
+
+    // Then add it to the work queue
+    {
+        let channels = crate::db::list_channels(&db)?;
+        let w = workers.lock().unwrap();
+
+        for chan in channels.into_iter() {
+            if chan.update_required(&db)? {
+                info!("Updating channel: {:?}", &chan);
+                w.enqueue(crate::worker::WorkItem::Update(chan, false));
+            }
+        }
+    }
+
+    // Redirect to channel for no-javascript clicking
+    Ok(Response::redirect_303("/channel/_all"))
+}
+
 /// Given a space separated list of statuses like `GE,NE`, parses each comma-separated status into actual `VideoStatus` object
 fn parse_statuses(statuses: &str) -> Result<HashSet<VideoStatus>> {
     let mut ret = HashSet::new();
@@ -352,6 +373,9 @@ fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Respon
         },
         (GET) ["/thumbnail/channel/{id}", id: i64] => {
             page_thumbnail(id, ThumbnailType::Channel, workers.clone())
+        },
+        (POST) ["/refresh/_all"] => {
+            page_refresh(workers.clone())
         },
         // Default route
         _ => {
