@@ -374,7 +374,7 @@ fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Respon
         (GET) ["/thumbnail/channel/{id}", id: i64] => {
             page_thumbnail(id, ThumbnailType::Channel, workers.clone())
         },
-        (POST) ["/refresh/_all"] => {
+        (GET) ["/update/_all"] => {
             page_refresh(workers.clone())
         },
         // Default route
