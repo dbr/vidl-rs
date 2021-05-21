@@ -394,9 +394,6 @@ fn serve(workers: Arc<Mutex<WorkerPool>>) -> Result<()> {
     let addr = format!("{}:{}", cfg.web_host, cfg.web_port);
     let url = format!("http://{}", &addr);
     info!("Listening on {}", &url);
-    let _p = std::process::Command::new("terminal-notifier")
-        .args(&["-message", "web server started", "-open", &url])
-        .spawn();
     let srv = rouille::Server::new(&addr, move |request| {
         handle_response(request, workers.clone())
     })
