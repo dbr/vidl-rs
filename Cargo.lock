@@ -1633,7 +1633,7 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 [[package]]
 name = "yt-chanvids"
 version = "1.3.0"
-source = "git+https://github.com/dbr/yt-chanvids?rev=c1265c941ce0ce15f58f639aa4bcb823ce3bd65c#c1265c941ce0ce15f58f639aa4bcb823ce3bd65c"
+source = "git+https://github.com/dbr/yt-chanvids?rev=9be0f8ffe44937099c822c917d78346b15e047f5#9be0f8ffe44937099c822c917d78346b15e047f5"
 dependencies = [
  "attohttpc 0.15.0",
  "getopts",
