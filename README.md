@@ -14,3 +14,13 @@ Each video is represented as a `VideoInfo` object. This is generic enough to be 
 
 [invidious]: https://github.com/omarroth/invidious
 [youtube-dl]: https://github.com/ytdl-org/youtube-dl/
+
+## Installing
+
+...
+
+## Maintainance
+
+Update youtube-dl:
+
+    docker exec -it vidl pip install --upgrade youtube-dl
