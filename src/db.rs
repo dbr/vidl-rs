@@ -35,6 +35,9 @@ pub struct DBVideoInfo {
 
     /// SQL ID of parent channel
     pub chanid: i64,
+
+    /// When it was added to the VIDL database (not to be confused with the `published_at` date on `VideoInfo`)
+    pub date_added: chrono::DateTime<chrono::Utc>,
 }
 
 impl DBVideoInfo {
@@ -43,13 +46,14 @@ impl DBVideoInfo {
         let chan = db
             .conn
             .query_row(
-                "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration FROM video
+                "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration, date_added FROM video
                 WHERE id=?1",
                 params![id],
                 |row| {
                     Ok(DBVideoInfo {
                         id: row.get(0)?,
                         status: row.get(1)?,
+                        date_added: row.get(10)?,
                         info: VideoInfo {
                             id: row.get(2)?,
                             url: row.get(3)?,
@@ -140,9 +144,9 @@ impl Database {
 
         if !mig.is_db_current()? {
             return Err(anyhow::anyhow!(
-                "Database is incorrect version, currently {:?} should be {:?}",
-                mig.get_db_version(),
-                mig.get_latest_version()
+                "Database schema is incorrect version, currently {:?} should be {:?}",
+                mig.get_db_version()?,
+                mig.get_latest_version(),
             ));
         }
 
@@ -537,6 +541,7 @@ pub fn all_videos(
         Ok(DBVideoInfo {
             id: row.get(0)?,
             status: row.get(1)?,
+            date_added: row.get(10)?,
             info: VideoInfo {
                 id: row.get(2)?,
                 url: row.get(3)?,
@@ -586,7 +591,7 @@ pub fn all_videos(
     };
 
     let sql = format!(
-        r#"SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration
+        r#"SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration, date_added
         FROM video
         WHERE title LIKE ("%" || ?3 || "%")
             AND {}

@@ -71,9 +71,64 @@ impl Migration for AddDuration {
     }
 }
 
+#[derive(Debug)]
+struct M03AddInsertionDate;
+
+impl Migration for M03AddInsertionDate {
+    fn get_name(&self) -> &str {
+        "Add date_added field to videos"
+    }
+    fn get_version(&self) -> i64 {
+        3
+    }
+
+    fn up(&self, conn: &rusqlite::Connection) -> rusqlite::Result<()> {
+        println!("CreateBase::up");
+
+        // Add column with null value
+        conn.execute_batch(
+            "
+            ALTER TABLE video
+            ADD COLUMN date_added DATETIME DEFAULT NULL /* schemamigrationhackery */
+            ",
+        )
+        .map(|_| ())?;
+
+        // Update value
+        conn.execute_batch(
+            "
+            UPDATE video SET date_added = CURRENT_TIMESTAMP;
+            ",
+        )
+        .map(|_| ())?;
+
+        // Change default
+        conn.execute_batch(
+            "
+        PRAGMA writable_schema = on;
+
+        UPDATE sqlite_master
+        SET sql = replace(sql, 'DEFAULT NULL /* schemamigrationhackery */',
+                       'DEFAULT CURRENT_TIMESTAMP')
+        WHERE type = 'table'
+        AND name = 'video';
+
+        PRAGMA writable_schema = off;
+        ",
+        )
+        .map(|_| ())?;
+
+        Ok(())
+    }
+}
+
 pub fn get_migrator(db: &rusqlite::Connection) -> Migrator {
     Migrator {
-        migs: vec![Box::new(CreateBase {}), Box::new(AddDuration {})],
+        migs: vec![
+            Box::new(CreateBase {}),
+            Box::new(AddDuration {}),
+            Box::new(M03AddInsertionDate {}),
+        ],
         db: &db,
     }
 }
