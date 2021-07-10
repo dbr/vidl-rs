@@ -10,7 +10,7 @@ use crate::common::{ChannelID, Service, VideoStatus};
 use crate::config::Config;
 use crate::source::base::ChannelData;
 use crate::source::base::{ChannelMetadata, VideoInfo};
-use crate::source::ytscrape::ScrapeQuery;
+use crate::source::invidious::YoutubeQuery;
 
 #[derive(Error, Debug)]
 pub enum DatabaseError {
@@ -365,8 +365,8 @@ impl Channel {
     pub fn add_video(&self, db: &Database, video: &VideoInfo) -> Result<DBVideoInfo> {
         db.conn
             .execute(
-                "INSERT INTO video (channel, video_id, url, title, description, thumbnail, published_at, status, duration)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                "INSERT INTO video (channel, video_id, url, title, description, thumbnail, published_at, status, duration, date_added)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 params![
                     self.id,
                     video.id,
@@ -377,6 +377,7 @@ impl Channel {
                     video.published_at.to_rfc3339(),
                     VideoStatus::New.as_str(), // Default status
                     video.duration,
+                    chrono::Utc::now(),
                 ],
             )
             .context("Add video query")?;
@@ -436,7 +437,7 @@ impl Channel {
         };
 
         let api: Box<dyn ChannelData> = match self.service {
-            Service::Youtube => Box::new(ScrapeQuery::new(&chanid)),
+            Service::Youtube => Box::new(YoutubeQuery::new(&chanid)),
             Service::Vimeo => {
                 // FIXME
                 error!("Ignoring Vimeo channel {:?}", &self);

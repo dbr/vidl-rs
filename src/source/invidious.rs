@@ -13,7 +13,7 @@ fn api_prefix() -> String {
     let prefix: &str = &mockito::server_url();
 
     #[cfg(not(test))]
-    let prefix: &str = "https://invidious.snopyta.org";
+    let prefix: &str = "https://invidious.namazso.eu";
 
     prefix.into()
 }
@@ -82,8 +82,15 @@ struct YTChannelInfo {
 
 fn request_data<T: serde::de::DeserializeOwned + std::fmt::Debug>(url: &str) -> Result<T> {
     fn subreq<T: serde::de::DeserializeOwned + std::fmt::Debug>(url: &str) -> Result<T> {
+        let mut sess = attohttpc::Session::new();
+
         debug!("Retrieving URL {}", &url);
-        let resp = attohttpc::get(&url).send()?;
+        let resp = sess.get(&url)
+        .header(
+            attohttpc::header::USER_AGENT,
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:78.0) Gecko/20100101 Firefox/78.0",
+        )
+        .send()?;
         let text = resp.text()?;
         trace!("Raw response: {}", &text);
         let data: T = serde_json::from_str(&text)
