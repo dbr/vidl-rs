@@ -8,6 +8,8 @@ use log::{debug, trace};
 use crate::common::{Service, YoutubeID};
 use crate::source::base::{ChannelMetadata, VideoInfo};
 
+use ratelimit_meter::{DirectRateLimiter, GCRA};
+
 fn api_prefix() -> String {
     #[cfg(test)]
     let prefix: &str = &mockito::server_url();
@@ -82,10 +84,8 @@ struct YTChannelInfo {
 
 fn request_data<T: serde::de::DeserializeOwned + std::fmt::Debug>(url: &str) -> Result<T> {
     fn subreq<T: serde::de::DeserializeOwned + std::fmt::Debug>(url: &str) -> Result<T> {
-        let mut sess = attohttpc::Session::new();
-
         debug!("Retrieving URL {}", &url);
-        let resp = sess.get(&url)
+        let resp = attohttpc::get(&url)
         .header(
             attohttpc::header::USER_AGENT,
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:78.0) Gecko/20100101 Firefox/78.0",
@@ -128,11 +128,18 @@ fn choose_best_thumbnail(thumbs: &Vec<YTThumbnailInfo>) -> &YTThumbnailInfo {
 #[derive(Debug)]
 pub struct YoutubeQuery<'a> {
     chan_id: &'a YoutubeID,
+    rate_limit: std::cell::RefCell<DirectRateLimiter<GCRA>>,
 }
 
 impl<'a> YoutubeQuery<'a> {
     pub fn new(chan_id: &YoutubeID) -> YoutubeQuery {
-        YoutubeQuery { chan_id }
+        YoutubeQuery {
+            chan_id,
+            rate_limit: std::cell::RefCell::new(DirectRateLimiter::<GCRA>::new(
+                std::num::NonZeroU32::new(10).unwrap(),
+                std::time::Duration::from_secs(60),
+            )),
+        }
     }
 }
 
@@ -144,6 +151,15 @@ impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
             chanid = self.chan_id.id
         );
 
+        match self.rate_limit.borrow_mut().check() {
+            Ok(_) => {
+                // good
+            }
+            Err(_) => {
+                debug!("Waiting for rate limit");
+                std::thread::sleep(std::time::Duration::from_secs(10));
+            }
+        }
         let d: YTChannelInfo = request_data(&url)?;
 
         let thumbnail = choose_best_thumbnail(&d.author_thumbnails).url.clone();
@@ -165,7 +181,6 @@ impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
                 chanid = chanid,
                 page = page,
             );
-
             let data: Vec<YTVideoInfo> = request_data(&url)?;
 
             let ret: Vec<VideoInfo> = data
@@ -196,6 +211,14 @@ impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
                 // Iterate through previously stored items
                 Some(Ok(cur))
             } else {
+                match self.rate_limit.borrow_mut().check() {
+                    Ok(_) => {}
+                    Err(_) => {
+                        debug!("Waiting for rate limit");
+                        std::thread::sleep(std::time::Duration::from_secs(10));
+                    }
+                }
+
                 // If nothing is stored, get next page of videos
                 let data: Result<Vec<VideoInfo>> = get_page(&self.chan_id.id, page_num);
                 page_num += 1; // Increment for future
