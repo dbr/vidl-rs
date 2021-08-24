@@ -58,8 +58,6 @@ struct YTVideoInfo {
     video_thumbnails: Vec<YTThumbnailInfo>,
     description: String,
     length_seconds: i32,
-    paid: bool,
-    premium: bool,
     published: i64,
 }
 
@@ -146,7 +144,7 @@ impl<'a> YoutubeQuery<'a> {
 impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
     fn get_metadata(&self) -> Result<ChannelMetadata> {
         let url = format!(
-            "{prefix}/api/v1/channels/{chanid}",
+            "{prefix}/api/v1/channels/{chanid}?fields=author,authorId,description,authorThumbnails,authorBanners",
             prefix = api_prefix(),
             chanid = self.chan_id.id
         );
@@ -255,7 +253,7 @@ pub fn find_channel_id(name: &str, service: &Service) -> Result<ChannelID> {
         Service::Youtube => {
             debug!("Looking up by username");
             let url = format!(
-                "{prefix}/api/v1/channels/{name}",
+                "{prefix}/api/v1/channels/{name}?fields=author,authorId,description,authorThumbnails,authorBanners",
                 prefix = api_prefix(),
                 name = name
             );
