@@ -154,8 +154,8 @@ impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
                 // good
             }
             Err(_) => {
-                debug!("Waiting for rate limit");
-                std::thread::sleep(std::time::Duration::from_secs(10));
+                trace!("Waiting for rate limit");
+                std::thread::sleep(std::time::Duration::from_secs(1));
             }
         }
         let d: YTChannelInfo = request_data(&url)?;
