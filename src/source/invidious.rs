@@ -12,12 +12,14 @@ use ratelimit_meter::{DirectRateLimiter, GCRA};
 
 fn api_prefix() -> String {
     #[cfg(test)]
-    let prefix: &str = &mockito::server_url();
+    let prefix: String = &mockito::server_url().into();
 
     #[cfg(not(test))]
-    let prefix: &str = "https://invidious.namazso.eu";
+    let prefix: String = std::env::var("VIDL_INVIDIOUS_URL")
+        .ok()
+        .unwrap_or_else(|| "https://invidious.snopyta.org".into());
 
-    prefix.into()
+    prefix
 }
 
 /*
