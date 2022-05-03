@@ -12,6 +12,11 @@ Each video is represented as a `VideoInfo` object. This is generic enough to be 
 
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) for offline caching of videos.
 
+## Configuration
+
+Env vars:
+
+- `VIDL_INVIDIOUS_URL`
 
 ## Installing
 
