@@ -35,7 +35,7 @@ pub fn download(vid: &VideoInfo) -> Result<()> {
 
     debug!("Running youtube-dl with args {:#?}", args);
 
-    let mut child = Command::new("youtube-dl")
+    let mut child = Command::new("yt-dlp")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .args(args)

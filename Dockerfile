@@ -27,7 +27,7 @@ RUN cargo build --release
 FROM python:3.8-slim-buster
 
 # Install runtime deps
-RUN pip3 install --no-cache-dir youtube-dl
+RUN pip3 install --no-cache-dir yt-dlp
 
 # Default config
 ENV VIDL_CONFIG_DIR=/config
