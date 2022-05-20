@@ -26,7 +26,11 @@ impl Config {
             db_filepath,
             web_host: "0.0.0.0".into(),
             web_port: "8448".into(),
-            extra_youtubedl_args: vec!["--restrict-filenames".into(), "--continue".into()],
+            extra_youtubedl_args: vec![
+                "--restrict-filenames".into(),
+                "--continue".into(),
+                "137/22/248/247/best".into(), // 1080p mp4, 720p mp4, 1080p webm, 720p webm, highest
+            ],
             download_dir: PathBuf::from(
                 std::env::var("VIDL_DOWNLOAD_DIR").unwrap_or("./download".into()),
             ),
