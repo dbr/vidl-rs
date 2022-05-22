@@ -29,6 +29,7 @@ impl Config {
             extra_youtubedl_args: vec![
                 "--restrict-filenames".into(),
                 "--continue".into(),
+                "-f".into(),
                 "137/22/248/247/best".into(), // 1080p mp4, 720p mp4, 1080p webm, 720p webm, highest
             ],
             download_dir: PathBuf::from(
