@@ -30,7 +30,7 @@ impl Config {
                 "--restrict-filenames".into(),
                 "--continue".into(),
                 "-f".into(),
-                "137/22/248/247/best".into(), // 1080p mp4, 720p mp4, 1080p webm, 720p webm, highest
+                "-f bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best".into(),
             ],
             download_dir: PathBuf::from(
                 std::env::var("VIDL_DOWNLOAD_DIR").unwrap_or("./download".into()),
