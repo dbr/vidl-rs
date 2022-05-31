@@ -31,6 +31,7 @@ impl Config {
                 "--continue".into(),
                 "-f".into(),
                 "-f bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best".into(),
+                "--sponsorblock-mark=sponsor,intro,outro,selfpromo,interaction".into(),
             ],
             download_dir: PathBuf::from(
                 std::env::var("VIDL_DOWNLOAD_DIR").unwrap_or("./download".into()),
