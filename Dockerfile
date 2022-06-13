@@ -26,6 +26,8 @@ RUN cargo build --release
 # FROM debian:buster-slim
 FROM python:3.8-slim-buster
 
+RUN apt update && apt install -y ffmpeg
+
 # Install runtime deps
 RUN pip3 install --no-cache-dir yt-dlp
 
