@@ -12,12 +12,12 @@ use ratelimit_meter::{DirectRateLimiter, GCRA};
 
 fn api_prefix() -> String {
     #[cfg(test)]
-    let prefix: String = &mockito::server_url().into();
+    let prefix: String = mockito::server_url();
 
     #[cfg(not(test))]
     let prefix: String = std::env::var("VIDL_INVIDIOUS_URL")
         .ok()
-        .unwrap_or_else(|| "https://invidious.snopyta.org".into());
+        .unwrap_or_else(|| "https://y.com.sb".into());
 
     prefix
 }
@@ -51,6 +51,12 @@ fn api_prefix() -> String {
   }
 ]
 */
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+struct YtVideoPage {
+    videos: Vec<YTVideoInfo>,
+    continuation: Option<String>,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -174,16 +180,29 @@ impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
     fn videos<'i>(&'i self) -> Box<dyn Iterator<Item = Result<VideoInfo>> + 'i> {
         // GET /api/v1/channels/:ucid/videos?page=1
 
-        fn get_page(chanid: &str, page: i32) -> Result<Vec<VideoInfo>> {
+        enum Token {
+            /// More pages to check
+            Value(String),
+            /// Nothing more
+            End,
+        }
+
+        fn get_page(chanid: &str, continuation: &Option<Token>) -> Result<(Vec<VideoInfo>, Option<String>)> {
+            let ct_arg = match continuation {
+                Some(Token::Value(v)) => format!("?continuation={}", v),
+                Some(Token::End) | None => "".into(),
+            };
+
             let url = format!(
-                "{prefix}/api/v1/channels/videos/{chanid}?page={page}",
+                "{prefix}/api/v1/channels/videos/{chanid}{continuation}",
                 prefix = api_prefix(),
                 chanid = chanid,
-                page = page,
+                continuation = ct_arg,
             );
-            let data: Vec<YTVideoInfo> = request_data(&url)?;
+            let data: YtVideoPage = request_data(&url)?;
 
             let ret: Vec<VideoInfo> = data
+                .videos
                 .iter()
                 .map(|d| VideoInfo {
                     id: d.video_id.clone(),
@@ -196,10 +215,10 @@ impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
                 })
                 .collect();
 
-            Ok(ret)
+            Ok((ret, data.continuation))
         }
 
-        let mut page_num = 1;
+        let mut cont_token: Option<Token> = None;
         let mut completed = false;
         let mut current_items: VecDeque<VideoInfo> = VecDeque::new();
 
@@ -220,8 +239,7 @@ impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
                 }
 
                 // If nothing is stored, get next page of videos
-                let data: Result<Vec<VideoInfo>> = get_page(&self.chan_id.id, page_num);
-                page_num += 1; // Increment for future
+                let data: Result<(Vec<VideoInfo>, Option<String>)> = get_page(&self.chan_id.id, &cont_token);
 
                 let nextup: Option<Result<VideoInfo>> = match data {
                     // Something went wrong, return an error item
@@ -231,7 +249,16 @@ impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
                         // Return error
                         Some(Err(e))
                     }
-                    Ok(new_items) => {
+                    Ok((new_items, ct)) => {
+                        match ct {
+                            None => {
+                                // No subsequent continuation, so no more requests needed
+                                completed = true;
+                            },
+                            Some(ct) => {
+                                cont_token = Some(Token::Value(ct));
+                            },
+                        }
                         if new_items.len() == 0 {
                             // No more items, stop iterator
                             None
