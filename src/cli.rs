@@ -7,7 +7,7 @@ use crate::db;
 use crate::source::base::ChannelData;
 use crate::worker::{WorkItem, WorkerPool};
 
-fn update(force: bool) -> Result<()> {
+fn update(force: bool, full_update: bool, filter: Option<String>) -> Result<()> {
     // Load config
     debug!("Loading config");
     let cfg = crate::config::Config::load();
@@ -23,9 +23,20 @@ fn update(force: bool) -> Result<()> {
 
     // Queue update
     for chan in channels.into_iter() {
+        if let Some(f) = &filter {
+            let matched = chan.title.to_lowercase().contains(&f.to_lowercase());
+            if !matched {
+                continue
+            }
+        }
+
         if force || chan.update_required(&db)? {
             info!("Updating channel: {:?}", &chan);
-            work.enqueue(WorkItem::Update(chan, force));
+            work.enqueue(WorkItem::Update {
+                chan,
+                force,
+                full_update,
+            });
         }
     }
 
@@ -180,7 +191,13 @@ pub fn main() -> Result<()> {
             Arg::with_name("force")
                 .short("f")
                 .help("Checks for new data even if already updated recently"),
-        );
+        )
+        .arg(
+            Arg::with_name("full-update")
+                .long("--full-update")
+                .help("Checks all pages, instead of stopping on an previously-seen video"),
+        )
+        .arg(Arg::with_name("filter").required(false));
 
     // List subcommand
     let sc_list = SubCommand::with_name("list")
@@ -251,7 +268,11 @@ pub fn main() -> Result<()> {
                 .expect("required arg service missing"),
         )?,
         ("remove", Some(sub_m)) => remove(sub_m.value_of("id"))?,
-        ("update", Some(sub_m)) => update(sub_m.is_present("force"))?,
+        ("update", Some(sub_m)) => update(
+            sub_m.is_present("force"),
+            sub_m.is_present("full-update"),
+            sub_m.value_of_lossy("filter").map(|x| x.to_string()),
+        )?,
         ("list", Some(sub_m)) => list(sub_m.value_of("id"))?,
         ("web", Some(_sub_m)) => crate::web::main()?,
         ("backup", Some(sub_m)) => match sub_m.subcommand() {

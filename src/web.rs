@@ -294,7 +294,7 @@ fn page_refresh(workers: Arc<Mutex<WorkerPool>>) -> Result<Response> {
         for chan in channels.into_iter() {
             if chan.update_required(&db)? {
                 info!("Updating channel: {:?}", &chan);
-                w.enqueue(crate::worker::WorkItem::Update(chan, false));
+                w.enqueue(crate::worker::WorkItem::Update{chan, force: false, full_update: false});
             }
         }
     }

@@ -10,7 +10,7 @@ use crate::db::{Channel, DBVideoInfo};
 pub enum WorkItem {
     Download(DBVideoInfo),
     Shutdown,
-    Update(Channel, bool),
+    Update{chan: Channel, force: bool, full_update: bool},
     ThumbnailCache(String),
 }
 
@@ -53,7 +53,7 @@ fn worker_download(val: &DBVideoInfo) -> Result<()> {
 
 /// Called regularly to check if a channel needs updated.
 /// Then either updates the channel or does nothing.
-fn worker_update(chan: &Channel, force: bool) -> Result<()> {
+fn worker_update(chan: &Channel, force: bool, full_update: bool) -> Result<()> {
     let cfg = crate::config::Config::load();
     let db = crate::db::Database::open(&cfg)?;
     let last_update = chan.last_update(&db)?;
@@ -74,7 +74,7 @@ fn worker_update(chan: &Channel, force: bool) -> Result<()> {
 
     if force || time_to_update {
         info!("Time to update {:?}", &chan);
-        chan.update(&db)?;
+        chan.update(&db, full_update)?;
     };
 
     Ok(())
@@ -138,9 +138,9 @@ impl Worker {
                     }
                 }
 
-                WorkItem::Update(ref chan, force) => {
+                WorkItem::Update { chan, force, full_update } => {
                     debug!("Worker {}: Updating {:#?}", self.num, chan);
-                    match worker_update(chan, force) {
+                    match worker_update(&chan, force, full_update) {
                         Ok(_) => (),
                         Err(e) => error!("Error in worker {}: {:#?}", self.num, e),
                     }

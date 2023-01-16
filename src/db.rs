@@ -428,7 +428,7 @@ impl Channel {
         all_videos(&db, limit, page, filter)
     }
 
-    pub fn update(&self, db: &Database) -> Result<()> {
+    pub fn update(&self, db: &Database, full_update: bool) -> Result<()> {
         // Set updated time now (even in case of failure)
         self.set_last_update(&db)?;
 
@@ -478,7 +478,7 @@ impl Channel {
         }
 
         let seen_videos = self
-            .last_n_video_urls(&db, 50)
+            .last_n_video_urls(&db, 200)
             .context("Failed to find latest video URLs")?;
 
         trace!("Last seen video URL's: {:?}", &seen_videos);
@@ -488,7 +488,7 @@ impl Channel {
         for v in api.videos() {
             let v = v?;
 
-            if seen_videos.contains(&v.url) {
+            if seen_videos.contains(&v.url) && !full_update {
                 debug!("Already seen video by URL {:?}", v.url);
                 break;
             }
