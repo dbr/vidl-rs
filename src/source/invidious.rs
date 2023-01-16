@@ -22,35 +22,6 @@ fn api_prefix() -> String {
     prefix
 }
 
-/*
-[
-  {
-    title: String,
-    videoId: String,
-    author: String,
-    authorId: String,
-    authorUrl: String,
-
-    videoThumbnails: [
-      {
-        quality: String,
-        url: String,
-        width: Int32,
-        height: Int32
-      }
-    ],
-    description: String,
-    descriptionHtml: String,
-
-    viewCount: Int64,
-    published: Int64,
-    publishedText: String,
-    lengthSeconds: Int32
-    paid: Bool,
-    premium: Bool
-  }
-]
-*/
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 struct YtVideoPage {
