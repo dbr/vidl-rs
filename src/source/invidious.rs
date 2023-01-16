@@ -209,24 +209,31 @@ impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
                     }
                 }
 
+                if let Some(Token::End) = cont_token {
+                    // No more videos queued up,
+                    // and no token for next page - done
+                    completed = true;
+                    return None;
+                }
+
                 // If nothing is stored, get next page of videos
                 let data: Result<(Vec<VideoInfo>, Option<String>)> = get_page(&self.chan_id.id, &cont_token);
 
                 let nextup: Option<Result<VideoInfo>> = match data {
-                    // Something went wrong, return an error item
                     Err(e) => {
-                        // Error state, prevent future iteration
+                        // Prevent future iteration
                         completed = true;
-                        // Return error
+                        // Something went wrong, return an error item
                         Some(Err(e))
                     }
                     Ok((new_items, ct)) => {
                         match ct {
                             None => {
-                                // No subsequent continuation, so no more requests needed
-                                completed = true;
+                                // No subsequent continuation, so future requests needed
+                                cont_token = Some(Token::End)
                             },
                             Some(ct) => {
+                                // Token in returned API response, so more pages to check later
                                 cont_token = Some(Token::Value(ct));
                             },
                         }
