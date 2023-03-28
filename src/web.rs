@@ -181,7 +181,12 @@ struct VideoListTemplate<'a> {
     page: i64,
 }
 
-fn page_list_videos(id: Option<i64>, page: i64, filter: Option<FilterParams>) -> Result<Response> {
+fn page_list_videos(
+    id: Option<i64>,
+    page: i64,
+    filter: Option<FilterParams>,
+    as_json: bool,
+) -> Result<Response> {
     let cfg = crate::config::Config::load();
     let db = crate::db::Database::open(&cfg)?;
     let (c, videos): (Option<Channel>, Vec<DBVideoInfo>) = if let Some(id) = id {
@@ -221,12 +226,23 @@ fn page_list_videos(id: Option<i64>, page: i64, filter: Option<FilterParams>) ->
 
     let ret: WebChannelVideos = WebChannelVideos { videos: by_date };
 
-    let t = VideoListTemplate {
-        videos: &ret,
-        page: page,
-    };
-    let html = t.render()?;
-    Ok(Response::html(html))
+    if as_json {
+        // Serialize the data into JSON
+        let json_data = serde_json::json!({
+            "videos": &ret,
+            "page": page,
+        });
+
+        // Return JSON response
+        Ok(Response::json(&json_data))
+    } else {
+        let t = VideoListTemplate {
+            videos: &ret,
+            page: page,
+        };
+        let html = t.render()?;
+        Ok(Response::html(html))
+    }
 }
 
 fn page_download_video(videoid: i64, workers: Arc<Mutex<WorkerPool>>) -> Result<Response> {
@@ -357,7 +373,7 @@ fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Respon
                 status: statuses,
                 chanid: None,
             };
-            page_list_videos(None, page, Some(filter))
+            page_list_videos(None, page, Some(filter), request.get_param("json").is_some())
         },
         (GET) ["/channel/{chanid}", chanid: i64] => {
             let page: i64 = request.get_param("page").and_then(|x| x.parse::<i64>().ok()).unwrap_or(0);
@@ -367,7 +383,7 @@ fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Respon
                 status: statuses,
                 chanid: None, // TODO: Can set this to chanid and remove branching here
             };
-            page_list_videos(Some(chanid), page, Some(filter))
+            page_list_videos(Some(chanid), page, Some(filter), request.get_param("json").is_some())
         },
         (POST) ["/download/{videoid}", videoid: i64] => {
             page_download_video(videoid, workers.clone())
