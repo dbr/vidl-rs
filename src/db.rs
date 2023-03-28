@@ -46,22 +46,23 @@ impl DBVideoInfo {
         let chan = db
             .conn
             .query_row(
-                "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration, date_added FROM video
+                "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration, date_added, title_alt FROM video
                 WHERE id=?1",
                 params![id],
                 |row| {
                     Ok(DBVideoInfo {
-                        id: row.get(0)?,
-                        status: row.get(1)?,
-                        date_added: row.get(10)?,
+                        id: row.get("id")?,
+                        status: row.get("status")?,
+                        date_added: row.get("date_added")?,
                         info: VideoInfo {
-                            id: row.get(2)?,
-                            url: row.get(3)?,
-                            title: row.get(4)?,
-                            description: row.get(5)?,
-                            thumbnail_url: row.get(6)?,
-                            published_at: row.get(7)?,
-                            duration: row.get(9)?,
+                            id: row.get("video_id")?,
+                            url: row.get("url")?,
+                            title: row.get("title")?,
+                            title_alt: row.get("title_alt")?,
+                            description: row.get("description")?,
+                            thumbnail_url: row.get("thumbnail")?,
+                            published_at: row.get("date_added")?,
+                            duration: row.get("duration")?,
                         },
                         chanid: row.get(8)?,
                     })
@@ -237,11 +238,11 @@ impl Channel {
                 params![id],
                 |row| {
                     Ok(Channel {
-                        id: row.get(0)?,
-                        chanid: row.get(1)?,
-                        service: row.get(2)?,
-                        title: row.get(3)?,
-                        thumbnail: row.get(4)?,
+                        id: row.get("id")?,
+                        chanid: row.get("chanid")?,
+                        service: row.get("service")?,
+                        title: row.get("title")?,
+                        thumbnail: row.get("thumbnail")?,
                     })
                 },
             )
@@ -258,11 +259,11 @@ impl Channel {
                 params![cid.id_str(), cid.service().as_str()],
                 |row| {
                     Ok(Channel {
-                        id: row.get(0)?,
-                        chanid: row.get(1)?,
-                        service: row.get(2)?,
-                        title: row.get(3)?,
-                        thumbnail: row.get(4)?,
+                        id: row.get("id")?,
+                        chanid: row.get("chanid")?,
+                        service: row.get("service")?,
+                        title: row.get("title")?,
+                        thumbnail: row.get("thumbnail")?,
                     })
                 },
             )
@@ -314,7 +315,7 @@ impl Channel {
         let result: Option<chrono::DateTime<chrono::Utc>> = db.conn.query_row(
             "SELECT last_update FROM channel WHERE id=?1",
             params![self.id],
-            |row| Ok(row.get(0)?),
+            |row| Ok(row.get("last_update")?),
         )?;
         Ok(result)
     }
@@ -394,7 +395,7 @@ impl Channel {
                 ORDER BY published_at DESC
                 LIMIT ?2",
         )?;
-        let mapped = q.query_map(params![self.id, num], |row| row.get(0))?;
+        let mapped = q.query_map(params![self.id, num], |row| row.get("url"))?;
 
         let mut set = HashSet::new();
         for m in mapped {
@@ -530,11 +531,11 @@ pub fn list_channels(db: &Database) -> Result<Vec<Channel>> {
         .prepare("SELECT id, chanid, service, title, thumbnail FROM channel ORDER BY title")?;
     let chaniter = stmt.query_map(params![], |row| {
         Ok(Channel {
-            id: row.get(0)?,
-            chanid: row.get(1)?,
-            service: row.get(2)?,
-            title: row.get(3)?,
-            thumbnail: row.get(4)?,
+            id: row.get("id")?,
+            chanid: row.get("chanid")?,
+            service: row.get("service")?,
+            title: row.get("title")?,
+            thumbnail: row.get("thumbnail")?,
         })
     })?;
     let mut ret = vec![];
@@ -558,19 +559,20 @@ pub fn all_videos(
 ) -> Result<Vec<DBVideoInfo>> {
     let mapper = |row: &rusqlite::Row| {
         Ok(DBVideoInfo {
-            id: row.get(0)?,
-            status: row.get(1)?,
-            date_added: row.get(10)?,
+            id: row.get("id")?,
+            status: row.get("status")?,
+            date_added: row.get("date_added")?,
             info: VideoInfo {
-                id: row.get(2)?,
-                url: row.get(3)?,
-                title: row.get(4)?,
-                description: row.get(5)?,
-                thumbnail_url: row.get(6)?,
-                published_at: row.get(7)?,
-                duration: row.get(9)?,
+                id: row.get("video_id")?,
+                url: row.get("url")?,
+                title: row.get("title")?,
+                title_alt: row.get("title_alt")?,
+                description: row.get("description")?,
+                thumbnail_url: row.get("thumbnail")?,
+                published_at: row.get("published_at")?,
+                duration: row.get("duration")?,
             },
-            chanid: row.get(8)?,
+            chanid: row.get("channel")?,
         })
     };
 
@@ -610,7 +612,7 @@ pub fn all_videos(
     };
 
     let sql = format!(
-        r#"SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration, date_added
+        r#"SELECT id, status, video_id, url, title, title_alt, description, thumbnail, published_at, channel, duration, date_added
         FROM video
         WHERE title LIKE ("%" || ?3 || "%")
             AND {}

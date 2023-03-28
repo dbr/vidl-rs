@@ -13,6 +13,7 @@ pub struct VideoInfo {
     pub id: String,
     pub url: String,
     pub title: String,
+    pub title_alt: Option<String>,
     pub description: String,
     pub thumbnail_url: String,
     pub published_at: chrono::DateTime<chrono::Utc>,

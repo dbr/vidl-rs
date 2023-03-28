@@ -93,9 +93,14 @@ fn list(chan_num: Option<&str>) -> Result<()> {
             if format!("{}", c.id) == chan_num {
                 for v in c.all_videos(&db, 50, 0, None)? {
                     let v = v.info;
+                    let title_alt = if let Some(a) = v.title_alt {
+                        format!(" {}", a)
+                    } else {
+                        "".to_string()
+                    };
                     println!(
-                        "ID: {}\nTitle: {}\nURL: {}\nPublished: {}\nThumbnail: {}\nDescription: {}\n----",
-                        v.id, v.title, v.url, v.published_at, v.thumbnail_url, v.description
+                        "ID: {}\nTitle: {}{}\nURL: {}\nPublished: {}\nThumbnail: {}\nDescription: {}\n----",
+                        v.id, v.title, title_alt, v.url, v.published_at, v.thumbnail_url, v.description
                     );
                 }
             }

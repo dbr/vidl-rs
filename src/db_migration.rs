@@ -122,12 +122,40 @@ impl Migration for M03AddInsertionDate {
     }
 }
 
+#[derive(Debug)]
+struct M04AddAltTitle;
+
+impl Migration for M04AddAltTitle {
+    fn get_name(&self) -> &str {
+        "Add title_alt to videos"
+    }
+    fn get_version(&self) -> i64 {
+        4
+    }
+
+    fn up(&self, conn: &rusqlite::Connection) -> rusqlite::Result<()> {
+        println!("CreateBase::up");
+
+        // Add column with null value
+        conn.execute_batch(
+            "
+            ALTER TABLE video
+            ADD COLUMN title_alt TEXT
+            ",
+        )
+        .map(|_| ())?;
+
+        Ok(())
+    }
+}
+
 pub fn get_migrator(db: &rusqlite::Connection) -> Migrator {
     Migrator {
         migs: vec![
             Box::new(CreateBase {}),
             Box::new(AddDuration {}),
             Box::new(M03AddInsertionDate {}),
+            Box::new(M04AddAltTitle {}),
         ],
         db: &db,
     }

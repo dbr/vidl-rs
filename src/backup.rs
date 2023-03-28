@@ -31,6 +31,7 @@ impl From<&Channel> for BackupChannel {
 struct BackupVideoInfo {
     status: String,
     title: String,
+    title_alt: Option<String>,
     url: String,
     videoid: String,
     publishdate: String,
@@ -56,6 +57,7 @@ impl From<BackupVideoInfo> for VideoInfo {
             id: src.videoid,
             url: src.url,
             title: src.title,
+            title_alt: src.title_alt,
             description: src.description,
             thumbnail_url: src.thumbnail_url,
             published_at: when,
@@ -70,6 +72,7 @@ impl From<&DBVideoInfo> for BackupVideoInfo {
             channel_id: src.chanid,
             status: src.status.as_str().into(),
             title: src.info.title.clone(),
+            title_alt: src.info.title_alt.clone(),
             url: src.info.url.clone(),
             videoid: src.info.id.clone(),
             publishdate: src.info.published_at.to_rfc3339(),
