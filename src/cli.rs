@@ -26,7 +26,7 @@ fn update(force: bool, full_update: bool, filter: Option<String>) -> Result<()> 
         if let Some(f) = &filter {
             let matched = chan.title.to_lowercase().contains(&f.to_lowercase());
             if !matched {
-                continue
+                continue;
             }
         }
 

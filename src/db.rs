@@ -437,22 +437,27 @@ impl Channel {
             id: self.chanid.clone(),
         };
 
-        match self.service{
+        match self.service {
             Service::Youtube => {
-                if ! self.chanid.starts_with("UC"){
+                if !self.chanid.starts_with("UC") {
                     let yt = crate::source::invidious::workaround::Yt::new();
                     if let Ok(fixed_id) = yt.find_channel_id(&self.chanid) {
-                        log::info!("Updating chanid {} username/channel-name to Youtube ID {}", self.chanid, fixed_id);
+                        log::info!(
+                            "Updating chanid {} username/channel-name to Youtube ID {}",
+                            self.chanid,
+                            fixed_id
+                        );
                         db.conn.execute(
                             "UPDATE channel SET chanid = ?1 WHERE id = ?2",
-                            params![fixed_id, self.id])?;
+                            params![fixed_id, self.id],
+                        )?;
                         chanid.id = fixed_id;
                     } else {
                         log::error!("Failed to update channel id {}", self.chanid);
                     }
-                }        
-            },
-            Service::Vimeo => {},
+                }
+            }
+            Service::Vimeo => {}
         }
 
         let api: Box<dyn ChannelData> = match self.service {

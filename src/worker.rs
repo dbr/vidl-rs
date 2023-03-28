@@ -10,7 +10,11 @@ use crate::db::{Channel, DBVideoInfo};
 pub enum WorkItem {
     Download(DBVideoInfo),
     Shutdown,
-    Update{chan: Channel, force: bool, full_update: bool},
+    Update {
+        chan: Channel,
+        force: bool,
+        full_update: bool,
+    },
     ThumbnailCache(String),
 }
 
@@ -138,7 +142,11 @@ impl Worker {
                     }
                 }
 
-                WorkItem::Update { chan, force, full_update } => {
+                WorkItem::Update {
+                    chan,
+                    force,
+                    full_update,
+                } => {
                     debug!("Worker {}: Updating {:#?}", self.num, chan);
                     match worker_update(&chan, force, full_update) {
                         Ok(_) => (),

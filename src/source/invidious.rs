@@ -158,7 +158,10 @@ impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
             End,
         }
 
-        fn get_page(chanid: &str, continuation: &Option<Token>) -> Result<(Vec<VideoInfo>, Option<String>)> {
+        fn get_page(
+            chanid: &str,
+            continuation: &Option<Token>,
+        ) -> Result<(Vec<VideoInfo>, Option<String>)> {
             let ct_arg = match continuation {
                 Some(Token::Value(v)) => format!("?continuation={}", v),
                 Some(Token::End) | None => "".into(),
@@ -218,7 +221,8 @@ impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
                 }
 
                 // If nothing is stored, get next page of videos
-                let data: Result<(Vec<VideoInfo>, Option<String>)> = get_page(&self.chan_id.id, &cont_token);
+                let data: Result<(Vec<VideoInfo>, Option<String>)> =
+                    get_page(&self.chan_id.id, &cont_token);
 
                 let nextup: Option<Result<VideoInfo>> = match data {
                     Err(e) => {
@@ -232,11 +236,11 @@ impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
                             None => {
                                 // No subsequent continuation, so future requests needed
                                 cont_token = Some(Token::End)
-                            },
+                            }
                             Some(ct) => {
                                 // Token in returned API response, so more pages to check later
                                 cont_token = Some(Token::Value(ct));
-                            },
+                            }
                         }
                         if new_items.len() == 0 {
                             // No more items, stop iterator
@@ -271,65 +275,63 @@ pub(crate) mod workaround {
         AndroidEmbeddedPlayer,
         AndroidScreenEmbed,
     }
-    
+
     impl ClientType {
         fn details(&self) -> Client {
             match self {
                 ClientType::Web => Client {
-                    name:    "WEB",
+                    name: "WEB",
                     version: "2.20210721.00.00",
                     api_key: "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8",
-                    screen:  "WATCH_FULL_SCREEN",
-                  },
-                  ClientType::WebEmbeddedPlayer => Client {
-                    name:    "WEB_EMBEDDED_PLAYER", // 56
+                    screen: "WATCH_FULL_SCREEN",
+                },
+                ClientType::WebEmbeddedPlayer => Client {
+                    name: "WEB_EMBEDDED_PLAYER", // 56
                     version: "1.20210721.1.0",
                     api_key: "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8",
-                    screen:  "EMBED",
-                  },
-                  ClientType::WebMobile => Client {
-                    name:    "MWEB",
+                    screen: "EMBED",
+                },
+                ClientType::WebMobile => Client {
+                    name: "MWEB",
                     version: "2.20210726.08.00",
                     api_key: "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8",
-                    screen:  "", // None
-                  },
-                  ClientType::WebScreenEmbed => Client {
-                    name:    "WEB",
+                    screen: "", // None
+                },
+                ClientType::WebScreenEmbed => Client {
+                    name: "WEB",
                     version: "2.20210721.00.00",
                     api_key: "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8",
-                    screen:  "EMBED",
-                  },
-                  ClientType::Android => Client {
-                    name:    "ANDROID",
+                    screen: "EMBED",
+                },
+                ClientType::Android => Client {
+                    name: "ANDROID",
                     version: "16.20",
                     api_key: "AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w",
-                    screen:  "", // ??
-                  },
-                  ClientType::AndroidEmbeddedPlayer => Client {
-                    name:    "ANDROID_EMBEDDED_PLAYER", // 55
+                    screen: "", // ??
+                },
+                ClientType::AndroidEmbeddedPlayer => Client {
+                    name: "ANDROID_EMBEDDED_PLAYER", // 55
                     version: "16.20",
                     api_key: "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8",
-                    screen:  "", // None?
-                  },
-                  ClientType::AndroidScreenEmbed => Client {
-                    name:    "ANDROID", // 3
+                    screen: "", // None?
+                },
+                ClientType::AndroidScreenEmbed => Client {
+                    name: "ANDROID", // 3
                     version: "16.20",
                     api_key: "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8",
-                    screen:  "EMBED",
-                  },
-                
+                    screen: "EMBED",
+                },
             }
         }
     }
-    
-    pub struct Yt {
-    }
-    
+
+    pub struct Yt {}
+
     impl Yt {
         pub fn new() -> Self {
             Self {}
         }
-    
+
         fn make_context(&self) -> serde_json::Value {
             let c = ClientType::WebScreenEmbed.details();
             serde_json::json!({
@@ -341,13 +343,13 @@ pub(crate) mod workaround {
                 }
             })
         }
-    
+
         /// Find channel ID (`UC..` string) based on either a user or channel name
         pub fn find_channel_id(&self, id: &str) -> anyhow::Result<String> {
             if id.starts_with("UC") {
                 return Ok(id.into());
             }
-    
+
             // Look up ID as a username
             let d = serde_json::json!({
                 "context": self.make_context(),
@@ -355,7 +357,10 @@ pub(crate) mod workaround {
             });
             if let Ok(data) = self.post_json("/youtubei/v1/navigation/resolve_url".into(), d) {
                 // Got response as user
-                if let Some(browse_id) = data.pointer("/endpoint/browseEndpoint/browseId").and_then(|x| x.as_str()) {
+                if let Some(browse_id) = data
+                    .pointer("/endpoint/browseEndpoint/browseId")
+                    .and_then(|x| x.as_str())
+                {
                     Ok(browse_id.into())
                 } else {
                     anyhow::bail!("Failed to find browseId for username");
@@ -367,26 +372,37 @@ pub(crate) mod workaround {
                     "url": format!("https://www.youtube.com/c/{}", id),
                 });
                 if let Ok(data) = self.post_json("/youtubei/v1/navigation/resolve_url".into(), d) {
-                    let d = data.pointer("/endpoint/browseEndpoint/browseId").and_then(|x| x.as_str()).unwrap();
+                    let d = data
+                        .pointer("/endpoint/browseEndpoint/browseId")
+                        .and_then(|x| x.as_str())
+                        .unwrap();
                     Ok(d.into())
                 } else {
-                    anyhow::bail!("Failed to find browseId for {} (tried as channel and user)", &id);
+                    anyhow::bail!(
+                        "Failed to find browseId for {} (tried as channel and user)",
+                        &id
+                    );
                 }
             }
         }
-    
-        fn post_json(&self, url: String, data: serde_json::Value) -> anyhow::Result<serde_json::Value> {
+
+        fn post_json(
+            &self,
+            url: String,
+            data: serde_json::Value,
+        ) -> anyhow::Result<serde_json::Value> {
             eprintln!("POST to {}", &url);
             eprintln!("data: {}", &data);
             let url = format!(
                 "https://www.youtube.com/{url}?key={api_key}",
-                url=url,
-                api_key=ClientType::WebScreenEmbed.details().api_key);
+                url = url,
+                api_key = ClientType::WebScreenEmbed.details().api_key
+            );
             let req = attohttpc::post(&url)
-            .header("Content-Type", "application/json; charset=UTF-8")
-            .header("Accept-Encoding", "gzip")
-            .text(serde_json::to_string(&data).unwrap())
-            .send();
+                .header("Content-Type", "application/json; charset=UTF-8")
+                .header("Accept-Encoding", "gzip")
+                .text(serde_json::to_string(&data).unwrap())
+                .send();
             let resp = req.unwrap();
             if resp.is_success() {
                 let text = resp.text()?;
@@ -397,20 +413,28 @@ pub(crate) mod workaround {
             }
         }
     }
-    
+
     #[test]
     fn test_basic() {
         let y = Yt::new();
-    
+
         // Look up directly by channel ID
-        assert_eq!(&y.find_channel_id("UCOYYX1Ucvx87A7CSy5M99yw").unwrap(), "UCOYYX1Ucvx87A7CSy5M99yw");
+        assert_eq!(
+            &y.find_channel_id("UCOYYX1Ucvx87A7CSy5M99yw").unwrap(),
+            "UCOYYX1Ucvx87A7CSy5M99yw"
+        );
         // By channel name
-        assert_eq!(&y.find_channel_id("onceuponaclimb").unwrap(), "UCOYYX1Ucvx87A7CSy5M99yw");
-    
+        assert_eq!(
+            &y.find_channel_id("onceuponaclimb").unwrap(),
+            "UCOYYX1Ucvx87A7CSy5M99yw"
+        );
+
         // By username
-        assert_eq!(&y.find_channel_id("thegreatsd").unwrap(), "UCUBfKCp83QT19JCUekEdxOQ");
+        assert_eq!(
+            &y.find_channel_id("thegreatsd").unwrap(),
+            "UCUBfKCp83QT19JCUekEdxOQ"
+        );
     }
-    
 }
 
 /// Find channel ID either from a username or ID
