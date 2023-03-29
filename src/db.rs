@@ -93,6 +93,19 @@ impl DBVideoInfo {
 
         Ok(())
     }
+
+    /// Set alternative title
+    pub fn set_title_alt(&self, db: &Database, title: String) -> Result<()> {
+        // Update DB
+        db.conn
+            .execute(
+                "UPDATE video SET title_alt=?1 WHERE id=?2",
+                params![&title, self.id],
+            )
+            .context("Failed to update alt video title")?;
+
+        Ok(())
+    }
 }
 
 /// Wraps connection to a database

@@ -63,7 +63,7 @@
                             <a href="/download/{{ c.id }}" onclick="vidl_grab_video({{ c.id }}); return false;">
                                 <!-- FIXME: Wont currently work without JS as /download/1 needs POST'd -->
                                 <div style="padding: 4px">
-                                    {{c.title}}
+                                    <span title="{{c.title}}">{{c.get_title()}}</span>
                                 </div>
                             </a>
                             <br/>

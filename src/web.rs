@@ -107,6 +107,7 @@ pub struct WebVideoInfo<'a> {
     video_id: String,
     url: String,
     title: String,
+    title_alt: Option<String>,
     description: String,
     thumbnail_url: String,
     published_at: String,
@@ -118,6 +119,14 @@ pub struct WebVideoInfo<'a> {
 impl<'a> WebVideoInfo<'a> {
     pub fn video_duration_str(&self) -> String {
         format!("{}m{}", self.duration / 60, self.duration % 60)
+    }
+
+    pub fn get_title(&self) -> &str {
+        if let Some(t) = &self.title_alt {
+            &t
+        } else {
+            &self.title
+        }
     }
 }
 
@@ -141,6 +150,7 @@ impl<'a> From<(DBVideoInfo, &'a WebChannel)> for WebVideoInfo<'a> {
             video_id: src.info.id,
             url: src.info.url,
             title: src.info.title,
+            title_alt: src.info.title_alt,
             description: src.info.description,
             thumbnail_url: src.info.thumbnail_url,
             published_at: src.info.published_at.to_rfc3339(),
@@ -243,6 +253,14 @@ fn page_list_videos(
         let html = t.render()?;
         Ok(Response::html(html))
     }
+}
+
+fn page_set_title_alt(videoid: i64, title: String) -> Result<Response> {
+    let cfg = crate::config::Config::load();
+    let db = crate::db::Database::open(&cfg)?;
+    let v = crate::db::DBVideoInfo::get_by_sqlid(&db, videoid)?;
+    v.set_title_alt(&db, title)?;
+    Ok(Response::text("ok"))
 }
 
 fn page_download_video(videoid: i64, workers: Arc<Mutex<WorkerPool>>) -> Result<Response> {
@@ -388,6 +406,14 @@ fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Respon
         (POST) ["/download/{videoid}", videoid: i64] => {
             page_download_video(videoid, workers.clone())
         },
+
+        (POST) ["/video_title/{videoid}", videoid: i64] => {
+            let Some(title) = request.get_param("title") else {
+                return Response::text("Missing ?title=...").with_status_code(500)
+            };
+            page_set_title_alt(videoid, title)
+        },
+
         (GET) ["/thumbnail/video/{id}", id: i64] => {
             page_thumbnail(id, ThumbnailType::Video, workers.clone())
         },
