@@ -109,6 +109,7 @@ pub struct WebVideoInfo<'a> {
     title: String,
     title_alt: Option<String>,
     description: String,
+    description_alt: Option<String>,
     thumbnail_url: String,
     published_at: String,
     status_class: String,
@@ -126,6 +127,13 @@ impl<'a> WebVideoInfo<'a> {
             &t
         } else {
             &self.title
+        }
+    }
+
+    pub fn get_description_alt(&self) -> &str {
+        match &self.description_alt {
+            Some(t) => t,
+            None => "None",
         }
     }
 }
@@ -152,6 +160,7 @@ impl<'a> From<(DBVideoInfo, &'a WebChannel)> for WebVideoInfo<'a> {
             title: src.info.title,
             title_alt: src.info.title_alt,
             description: src.info.description,
+            description_alt: src.info.description_alt,
             thumbnail_url: src.info.thumbnail_url,
             published_at: src.info.published_at.to_rfc3339(),
             status_class: status_css_class(src.status),
@@ -260,6 +269,14 @@ fn page_set_title_alt(videoid: i64, title: String) -> Result<Response> {
     let db = crate::db::Database::open(&cfg)?;
     let v = crate::db::DBVideoInfo::get_by_sqlid(&db, videoid)?;
     v.set_title_alt(&db, title)?;
+    Ok(Response::text("ok"))
+}
+
+fn page_set_description_alt(videoid: i64, title: String) -> Result<Response> {
+    let cfg = crate::config::Config::load();
+    let db = crate::db::Database::open(&cfg)?;
+    let v = crate::db::DBVideoInfo::get_by_sqlid(&db, videoid)?;
+    v.set_description_alt(&db, title)?;
     Ok(Response::text("ok"))
 }
 
@@ -412,6 +429,13 @@ fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Respon
                 return Response::text("Missing ?title=...").with_status_code(500)
             };
             page_set_title_alt(videoid, title)
+        },
+
+        (POST) ["/video_description/{videoid}", videoid: i64] => {
+            let Some(text) = request.get_param("text") else {
+                return Response::text("Missing ?text=...").with_status_code(500)
+            };
+            page_set_description_alt(videoid, text)
         },
 
         (GET) ["/thumbnail/video/{id}", id: i64] => {

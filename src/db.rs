@@ -46,7 +46,7 @@ impl DBVideoInfo {
         let chan = db
             .conn
             .query_row(
-                "SELECT id, status, video_id, url, title, description, thumbnail, published_at, channel, duration, date_added, title_alt FROM video
+                "SELECT id, status, video_id, url, title, description, description_alt, thumbnail, published_at, channel, duration, date_added, title_alt FROM video
                 WHERE id=?1",
                 params![id],
                 |row| {
@@ -60,15 +60,16 @@ impl DBVideoInfo {
                             title: row.get("title")?,
                             title_alt: row.get("title_alt")?,
                             description: row.get("description")?,
+                            description_alt: row.get("description_alt")?,
                             thumbnail_url: row.get("thumbnail")?,
-                            published_at: row.get("date_added")?,
+                            published_at: row.get("published_at")?,
                             duration: row.get("duration")?,
                         },
-                        chanid: row.get(8)?,
+                        chanid: row.get("channel")?,
                     })
                 },
             )
-            .context("Failed to find channel")?;
+            .context("Failed to find video by ID")?;
 
         Ok(chan)
     }
@@ -103,6 +104,19 @@ impl DBVideoInfo {
                 params![&title, self.id],
             )
             .context("Failed to update alt video title")?;
+
+        Ok(())
+    }
+
+    /// Set alternative title
+    pub fn set_description_alt(&self, db: &Database, title: String) -> Result<()> {
+        // Update DB
+        db.conn
+            .execute(
+                "UPDATE video SET description_alt=?1 WHERE id=?2",
+                params![&title, self.id],
+            )
+            .context("Failed to update alt video description")?;
 
         Ok(())
     }
@@ -259,7 +273,7 @@ impl Channel {
                     })
                 },
             )
-            .context("Failed to find channel")?;
+            .context("Failed to find channel by ID")?;
 
         Ok(chan)
     }
@@ -280,7 +294,7 @@ impl Channel {
                     })
                 },
             )
-            .context("Failed to find channel")?;
+            .context("Failed to find channel from ID and service")?;
 
         Ok(chan)
     }
@@ -586,6 +600,7 @@ pub fn all_videos(
                 title: row.get("title")?,
                 title_alt: row.get("title_alt")?,
                 description: row.get("description")?,
+                description_alt: row.get("description_alt")?,
                 thumbnail_url: row.get("thumbnail")?,
                 published_at: row.get("published_at")?,
                 duration: row.get("duration")?,
@@ -630,7 +645,7 @@ pub fn all_videos(
     };
 
     let sql = format!(
-        r#"SELECT id, status, video_id, url, title, title_alt, description, thumbnail, published_at, channel, duration, date_added
+        r#"SELECT id, status, video_id, url, title, title_alt, description, description_alt, thumbnail, published_at, channel, duration, date_added
         FROM video
         WHERE title LIKE ("%" || ?3 || "%")
             AND {}
@@ -720,7 +735,9 @@ mod tests {
                 id: "an id".into(),
                 url: "http://example.com/watch?v=abc123".into(),
                 title: "A title!".into(),
+                title_alt: None,
                 description: "A ficticious video.\nIt is quite good".into(),
+                description_alt: None,
                 thumbnail_url: "http://example.com/vidthumb.jpg".into(),
                 published_at: when,
                 duration: 12341,
@@ -755,7 +772,9 @@ mod tests {
                 id: "old id".into(),
                 url: "http://example.com/watch?v=old".into(),
                 title: "Old video".into(),
+                title_alt: None,
                 description: "Was created a while ago".into(),
+                description_alt: None,
                 thumbnail_url: "http://example.com/oldvid.jpg".into(),
                 published_at: when,
                 duration: 0,
@@ -797,7 +816,9 @@ mod tests {
                 id: "an id".into(),
                 url: "http://example.com/watch?v=abc123".into(),
                 title: "Good video!".into(),
+                title_alt: None,
                 description: "A ficticious video.\nIt is quite good".into(),
+                description_alt: None,
                 thumbnail_url: "http://example.com/vidthumb.jpg".into(),
                 published_at: when,
                 duration: 12341,
@@ -814,7 +835,9 @@ mod tests {
                 id: "an id".into(),
                 url: "http://example.com/watch?v=def321".into(),
                 title: "Another good video!".into(),
+                title_alt: None,
                 description: "A ficticious video.\nIt is quite good".into(),
+                description_alt: None,
                 thumbnail_url: "http://example.com/vidthumb.jpg".into(),
                 published_at: when,
                 duration: 12341,
@@ -831,7 +854,9 @@ mod tests {
                 id: "an id".into(),
                 url: "http://example.com/watch?v=xyz789".into(),
                 title: "A grab error".into(),
+                title_alt: None,
                 description: "A ficticious video.\nIt is quite good".into(),
+                description_alt: None,
                 thumbnail_url: "http://example.com/vidthumb.jpg".into(),
                 published_at: when,
                 duration: 12341,
@@ -1022,7 +1047,9 @@ mod tests {
                 id: "1st".into(),
                 url: "http://example.com/watch?v=abc123".into(),
                 title: "Good video!".into(),
+                title_alt: None,
                 description: "A ficticious video.\nIt is quite good".into(),
+                description_alt: None,
                 thumbnail_url: "http://example.com/vidthumb.jpg".into(),
                 published_at: when,
                 duration: 12341,
@@ -1040,7 +1067,9 @@ mod tests {
                 id: "2nd".into(),
                 url: "http://example.com/watch?v=def321".into(),
                 title: "Another good video!".into(),
+                title_alt: None,
                 description: "A ficticious video.\nIt is quite good".into(),
+                description_alt: None,
                 thumbnail_url: "http://example.com/vidthumb.jpg".into(),
                 published_at: when,
                 duration: 12341,
@@ -1058,7 +1087,9 @@ mod tests {
                 id: "3rd".into(),
                 url: "http://example.com/watch?v=xyz7890".into(),
                 title: "A grab error".into(),
+                title_alt: None,
                 description: "A third video".into(),
+                description_alt: None,
                 thumbnail_url: "http://example.com/vidthumb.jpg".into(),
                 published_at: when,
                 duration: 12341,

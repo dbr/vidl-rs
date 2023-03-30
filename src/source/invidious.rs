@@ -184,6 +184,7 @@ impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
                     title: d.title.clone(),
                     title_alt: None,
                     description: d.description.clone(),
+                    description_alt: None,
                     thumbnail_url: choose_best_thumbnail(&d.video_thumbnails).url.clone(),
                     published_at: chrono::Utc.timestamp(d.published, 0),
                     duration: d.length_seconds,

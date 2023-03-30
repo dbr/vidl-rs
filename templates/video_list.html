@@ -82,6 +82,9 @@
                         <span id="vidl-tippy-content-{{c.id}}">
                             <img src="/thumbnail/video/{{c.id}}" width="256"/>
                             <br>
+                            {{c.get_description_alt()}}
+                            <hr>
+                            <h2>Original description:</h2>
                             {{c.description}}
                         </span>
                         <span id="vidl-tippy-tooltip-{{c.id}}">Info</span>

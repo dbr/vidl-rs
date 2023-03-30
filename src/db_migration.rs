@@ -12,7 +12,6 @@ impl Migration for CreateBase {
     }
 
     fn up(&self, conn: &rusqlite::Connection) -> rusqlite::Result<()> {
-        println!("CreateBase::up");
         conn.execute_batch(
             "
             CREATE TABLE channel (
@@ -60,7 +59,6 @@ impl Migration for AddDuration {
     }
 
     fn up(&self, conn: &rusqlite::Connection) -> rusqlite::Result<()> {
-        println!("CreateBase::up");
         conn.execute_batch(
             "
             ALTER TABLE video
@@ -83,8 +81,6 @@ impl Migration for M03AddInsertionDate {
     }
 
     fn up(&self, conn: &rusqlite::Connection) -> rusqlite::Result<()> {
-        println!("CreateBase::up");
-
         // Add column with null value
         conn.execute_batch(
             "
@@ -134,8 +130,6 @@ impl Migration for M04AddAltTitle {
     }
 
     fn up(&self, conn: &rusqlite::Connection) -> rusqlite::Result<()> {
-        println!("CreateBase::up");
-
         // Add column with null value
         conn.execute_batch(
             "
@@ -149,6 +143,30 @@ impl Migration for M04AddAltTitle {
     }
 }
 
+#[derive(Debug)]
+struct M05AddAltDescription;
+
+impl Migration for M05AddAltDescription {
+    fn get_name(&self) -> &str {
+        "Add description_alt to videos"
+    }
+    fn get_version(&self) -> i64 {
+        5
+    }
+
+    fn up(&self, conn: &rusqlite::Connection) -> rusqlite::Result<()> {
+        // Add column with null value
+        conn.execute_batch(
+            "
+            ALTER TABLE video
+            ADD COLUMN description_alt TEXT
+            ",
+        )
+        .map(|_| ())?;
+
+        Ok(())
+    }
+}
 pub fn get_migrator(db: &rusqlite::Connection) -> Migrator {
     Migrator {
         migs: vec![
@@ -156,6 +174,7 @@ pub fn get_migrator(db: &rusqlite::Connection) -> Migrator {
             Box::new(AddDuration {}),
             Box::new(M03AddInsertionDate {}),
             Box::new(M04AddAltTitle {}),
+            Box::new(M05AddAltDescription {}),
         ],
         db: &db,
     }

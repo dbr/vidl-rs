@@ -36,6 +36,7 @@ struct BackupVideoInfo {
     videoid: String,
     publishdate: String,
     description: String,
+    description_alt: Option<String>,
     thumbnail_url: String,
     channel_id: i64,
     duration: i32,
@@ -59,6 +60,7 @@ impl From<BackupVideoInfo> for VideoInfo {
             title: src.title,
             title_alt: src.title_alt,
             description: src.description,
+            description_alt: src.description_alt,
             thumbnail_url: src.thumbnail_url,
             published_at: when,
             duration: src.duration,
@@ -77,6 +79,7 @@ impl From<&DBVideoInfo> for BackupVideoInfo {
             videoid: src.info.id.clone(),
             publishdate: src.info.published_at.to_rfc3339(),
             description: src.info.description.clone(),
+            description_alt: src.info.description_alt.clone(),
             thumbnail_url: src.info.thumbnail_url.clone(),
             duration: src.info.duration,
         }
