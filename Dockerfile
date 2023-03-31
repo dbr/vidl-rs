@@ -1,5 +1,5 @@
 # 1) Build stage
-FROM rust:1.42 as builder
+FROM rust:1.68 as builder
 WORKDIR /src
 
 # Create empty source
