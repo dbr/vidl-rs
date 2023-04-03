@@ -33,4 +33,4 @@ env_logger = "0.7"
 
 [dependencies.rusqlite]
 features = ["chrono", "bundled"]
-version = "0.21"
+version = "0.23"
