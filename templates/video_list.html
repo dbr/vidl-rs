@@ -37,11 +37,32 @@
     function populate_dates() {
         let things = document.getElementsByClassName("vidl-date-str");
         for (let item of things) {
-            item.textContent = format_date(item.textContent);
+            let t = format_date(item.textContent);
+            if (t !== undefined) {
+                item.textContent = t;
+            }
         }
     }
+
+    function format_datetime(str) {
+        let d = luxon.DateTime.fromISO(str);
+        return d.toFormat("t");
+    }
+
+    function populate_datetimes() {
+        let things = document.getElementsByClassName("vidl-datetime-str");
+        for (let item of things) {
+            let t = format_datetime(item.textContent);
+            console.log("Invalid datetime", item.textContent);
+            if (t !== undefined) {
+                item.textContent = t;
+            }
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         populate_dates();
+        populate_datetimes();
     });
 </script>
 <div id="content">
@@ -68,7 +89,7 @@
                             </a>
                             <br/>
                             <small>{{c.video_duration_str()}}.
-                                {{c.published_at}}</small>
+                                <span class="vidl-datetime-str">{{c.published_at}}</span></small>
                             <small>
                                 on
                                 <a href="/channel/{{c.channel.id}}">
