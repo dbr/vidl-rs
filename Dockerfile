@@ -24,7 +24,7 @@ RUN cargo build --release
 
 # 2) Runtime stage
 # FROM debian:buster-slim
-FROM python:3.8-slim-buster
+FROM python:3.9-slim-bullseye
 
 RUN apt update && apt install -y ffmpeg
 
