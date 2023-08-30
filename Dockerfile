@@ -1,5 +1,5 @@
 # 1) Build stage
-FROM rust:1.68 as builder
+FROM rust:1.71 as builder
 WORKDIR /src
 
 # Create empty source
@@ -24,7 +24,7 @@ RUN cargo build --release
 
 # 2) Runtime stage
 # FROM debian:buster-slim
-FROM python:3.9-slim-bullseye
+FROM python:3.10-slim-bullseye
 
 RUN apt update && apt install -y ffmpeg
 
