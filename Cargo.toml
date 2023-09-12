@@ -21,6 +21,8 @@ lazy_static = "1.4"
 thiserror = "1.0"
 askama = "0.12"
 ratelimit_meter = "5.0.0"
+trycmd = "0.14.17"
+tempfile = "3.8.0"
 
 [dev-dependencies]
 mockito = "0"
