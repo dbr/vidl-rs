@@ -44,9 +44,6 @@ pub(crate) struct CmdRemove {
 }
 
 #[derive(Debug, Args)]
-pub(crate) struct CmdInit {}
-
-#[derive(Debug, Args)]
 pub(crate) struct CmdList {
     pub(crate) id: Option<i64>,
 }
@@ -90,7 +87,7 @@ pub(crate) enum Commands {
     /// enqueues videos for download
     Download,
     /// Initialise the database
-    Init(CmdInit),
+    Init,
     /// list channels/videos
     List(CmdList),
     /// update database schema to be current
@@ -291,7 +288,7 @@ pub fn main() -> Result<()> {
         Commands::Download => {
             todo!()
         }
-        Commands::Init(_) => {
+        Commands::Init => {
             init()?;
         }
         Commands::List(o) => {
