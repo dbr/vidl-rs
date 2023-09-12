@@ -85,32 +85,8 @@ impl Migration for M03AddInsertionDate {
         conn.execute_batch(
             "
             ALTER TABLE video
-            ADD COLUMN date_added DATETIME DEFAULT NULL /* schemamigrationhackery */
+            ADD COLUMN date_added DATETIME DEFAULT CURRENT_TIMESTAMP
             ",
-        )
-        .map(|_| ())?;
-
-        // Update value
-        conn.execute_batch(
-            "
-            UPDATE video SET date_added = CURRENT_TIMESTAMP;
-            ",
-        )
-        .map(|_| ())?;
-
-        // Change default
-        conn.execute_batch(
-            "
-        PRAGMA writable_schema = on;
-
-        UPDATE sqlite_master
-        SET sql = replace(sql, 'DEFAULT NULL /* schemamigrationhackery */',
-                       'DEFAULT CURRENT_TIMESTAMP')
-        WHERE type = 'table'
-        AND name = 'video';
-
-        PRAGMA writable_schema = off;
-        ",
         )
         .map(|_| ())?;
 
