@@ -1,11 +1,109 @@
 use anyhow::Result;
-use clap::{App, Arg, SubCommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use log::{debug, info, warn};
 
 use crate::common::{ChannelID, Service};
 use crate::db;
 use crate::source::base::ChannelData;
 use crate::worker::{WorkItem, WorkerPool};
+
+#[derive(Debug, Parser)]
+#[clap(name = "vidl", version)]
+pub(crate) struct App {
+    #[clap(flatten)]
+    pub(crate) global: GlobalOpts,
+
+    #[clap(subcommand)]
+    pub(crate) subcommand: Commands,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub(crate) enum CliService {
+    Youtube,
+    Vimeo,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct GlobalOpts {
+    /// Verbosity level (can be specified multiple times)
+    #[clap(long, short, global = true, action = clap::ArgAction::Count)]
+    pub(crate) verbose: u8,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct CmdAdd {
+    pub(crate) chanid: String,
+    /// youtube or vimeo
+    #[clap(value_enum, default_value_t=CliService::Youtube)]
+    pub(crate) service: CliService,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct CmdRemove {
+    pub(crate) id: i64,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct CmdInit {}
+
+#[derive(Debug, Args)]
+pub(crate) struct CmdList {
+    pub(crate) id: Option<i64>,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct CmdUpdate {
+    /// Checks for new data even if already updated recently
+    #[clap(long, short)]
+    pub(crate) force: bool,
+    /// Checks all pages, instead of stopping on an previously-seen video
+    #[clap(long)]
+    pub(crate) full_update: bool,
+    /// Filter by channel name
+    #[clap()]
+    pub(crate) filter: Option<String>,
+}
+
+#[derive(Debug, Args, Clone)]
+pub(crate) struct CmdBackupExport {
+    /// Output file
+    #[clap(short, long)]
+    output: Option<String>,
+}
+
+#[derive(Debug, Args, Clone)]
+pub(crate) struct CmdBackupImport {}
+
+#[derive(Debug, Subcommand, Clone)]
+pub(crate) enum CmdBackupOpts {
+    Export(CmdBackupExport),
+    Import(CmdBackupImport),
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum Commands {
+    /// Add channel
+    Add(CmdAdd),
+    /// Backup database as simple .json file
+    #[clap(subcommand)]
+    Backup(CmdBackupOpts),
+    /// enqueues videos for download
+    Download,
+    /// Initialise the database
+    Init(CmdInit),
+    /// list channels/videos
+    List(CmdList),
+    /// update database schema to be current
+    Migrate,
+    /// remove given channel and all videos in it
+    Remove(CmdRemove),
+    /// Updates all added channel info
+    Update(CmdUpdate),
+    /// serve web interface
+    Web,
+    /// downloads queued videos
+    Worker,
+}
 
 fn update(force: bool, full_update: bool, filter: Option<String>) -> Result<()> {
     // Load config
@@ -67,13 +165,11 @@ fn add(name: &str, service_str: &str) -> Result<()> {
 }
 
 /// Remove channel and videos
-fn remove(chan_num: Option<&str>) -> Result<()> {
+fn remove(chan_num: i64) -> Result<()> {
     let cfg = crate::config::Config::load();
     let db = db::Database::open(&cfg)?;
 
-    let id = chan_num.unwrap().parse()?;
-
-    let chan = db::Channel::get_by_sqlid(&db, id)?;
+    let chan = db::Channel::get_by_sqlid(&db, chan_num)?;
 
     info!("Removing channel {:?}", &chan);
     chan.delete(&db)?;
@@ -82,7 +178,7 @@ fn remove(chan_num: Option<&str>) -> Result<()> {
 }
 
 /// List videos
-fn list(chan_num: Option<&str>) -> Result<()> {
+fn list(chan_num: Option<i64>) -> Result<()> {
     let cfg = crate::config::Config::load();
     let db = db::Database::open(&cfg)?;
 
@@ -90,7 +186,7 @@ fn list(chan_num: Option<&str>) -> Result<()> {
         // List specific channel
         let channels = db::list_channels(&db)?;
         for c in channels {
-            if format!("{}", c.id) == chan_num {
+            if c.id == chan_num {
                 for v in c.all_videos(&db, 50, 0, None)? {
                     let v = v.info;
                     let title_alt = if let Some(a) = v.title_alt {
@@ -170,128 +266,53 @@ fn config_logging(verbosity: u64) -> Result<()> {
 }
 
 pub fn main() -> Result<()> {
-    // Init DB subcommand
-    let sc_init = SubCommand::with_name("init").about("Initialise the database");
+    let args = App::parse();
 
-    // Add channel subcommand
-    let sc_add = SubCommand::with_name("add")
-        .about("Add channel")
-        .arg(Arg::with_name("chanid").required(true))
-        .arg(
-            Arg::with_name("service")
-                .required(true)
-                .default_value("youtube")
-                .possible_values(&["youtube", "vimeo"])
-                .value_name("youtube|vimeo"),
-        );
+    config_logging(args.global.verbose as u64)?;
 
-    let sc_remove = SubCommand::with_name("remove")
-        .about("remove given channel and all videos in it")
-        .arg(Arg::with_name("id").required(true));
-
-    // Update subcommand
-    let sc_update = SubCommand::with_name("update")
-        .about("Updates all added channel info")
-        .arg(
-            Arg::with_name("force")
-                .short("f")
-                .help("Checks for new data even if already updated recently"),
-        )
-        .arg(
-            Arg::with_name("full-update")
-                .long("--full-update")
-                .help("Checks all pages, instead of stopping on an previously-seen video"),
-        )
-        .arg(Arg::with_name("filter").required(false));
-
-    // List subcommand
-    let sc_list = SubCommand::with_name("list")
-        .about("list channels/videos")
-        .arg(Arg::with_name("id"));
-
-    // Web subcommand
-    let sc_web = SubCommand::with_name("web").about("serve web interface");
-
-    // Backup subcommands
-    let sc_import = SubCommand::with_name("import").about("import DB backup");
-    let sc_export = SubCommand::with_name("export")
-        .about("export DB backup")
-        .arg(
-            Arg::with_name("output")
-                .short("o")
-                .long("output")
-                .takes_value(true),
-        );
-    let sc_backup = SubCommand::with_name("backup")
-        .about("Backup database as simple .json file")
-        .subcommand(sc_import)
-        .subcommand(sc_export);
-
-    // Download subcommand
-    let sc_download = SubCommand::with_name("download").about("enqueues videos for download");
-
-    // Download subcommand
-    let sc_worker = SubCommand::with_name("worker").about("downloads queued videos");
-
-    // DB update command
-    let sc_migrate = SubCommand::with_name("migrate").about("update database schema to be current");
-
-    // Main command
-    let app = App::new("vidl")
-        .subcommand(sc_init)
-        .subcommand(sc_add)
-        .subcommand(sc_remove)
-        .subcommand(sc_update)
-        .subcommand(sc_list)
-        .subcommand(sc_web)
-        .subcommand(sc_backup)
-        .subcommand(sc_download)
-        .subcommand(sc_worker)
-        .subcommand(sc_migrate)
-        .arg(
-            Arg::with_name("verbose")
-                .short("v")
-                .multiple(true)
-                .takes_value(false)
-                .global(true),
-        );
-
-    // Parse
-    let app_m = app.get_matches();
-
-    // Logging levels
-    let verbosity = app_m.occurrences_of("verbose");
-    config_logging(verbosity)?;
-
-    match app_m.subcommand() {
-        ("add", Some(sub_m)) => add(
-            sub_m
-                .value_of("chanid")
-                .expect("required arg chanid missing"),
-            sub_m
-                .value_of("service")
-                .expect("required arg service missing"),
-        )?,
-        ("remove", Some(sub_m)) => remove(sub_m.value_of("id"))?,
-        ("update", Some(sub_m)) => update(
-            sub_m.is_present("force"),
-            sub_m.is_present("full-update"),
-            sub_m.value_of_lossy("filter").map(|x| x.to_string()),
-        )?,
-        ("list", Some(sub_m)) => list(sub_m.value_of("id"))?,
-        ("web", Some(_sub_m)) => crate::web::main()?,
-        ("backup", Some(sub_m)) => match sub_m.subcommand() {
-            ("export", Some(sub_m)) => crate::backup::export(sub_m.value_of("output"))?,
-            ("import", Some(_sub_m)) => crate::backup::import()?,
-            _ => return Err(anyhow::anyhow!("Unhandled backup subcommand")),
-        },
-        ("worker", Some(_sub_m)) => crate::worker::main()?,
-        ("init", Some(_sub_m)) => init()?,
-        ("migrate", Some(_sub_m)) => migrate()?,
-        _ => {
-            return Err(anyhow::anyhow!("Unhandled subcommand"));
+    match args.subcommand {
+        Commands::Add(o) => {
+            add(
+                &o.chanid,
+                match o.service {
+                    CliService::Youtube => "youtube",
+                    CliService::Vimeo => "vimeo",
+                },
+            )?;
         }
-    };
+        Commands::Backup(o) => match o {
+            CmdBackupOpts::Export(o) => {
+                crate::backup::export(o.output.as_deref())?;
+            }
+            CmdBackupOpts::Import(_) => {
+                crate::backup::import()?;
+            }
+        },
+        Commands::Download => {
+            todo!()
+        }
+        Commands::Init(_) => {
+            init()?;
+        }
+        Commands::List(o) => {
+            list(o.id)?;
+        }
+        Commands::Migrate => {
+            migrate()?;
+        }
+        Commands::Remove(o) => {
+            remove(o.id)?;
+        }
+        Commands::Update(o) => {
+            update(o.force, o.full_update, o.filter)?;
+        }
+        Commands::Web => {
+            crate::web::main()?;
+        }
+        Commands::Worker => {
+            crate::worker::main()?;
+        }
+    }
 
     Ok(())
 }
