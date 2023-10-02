@@ -240,6 +240,14 @@ impl FromSql for VideoStatus {
     }
 }
 
+#[derive(Debug)]
+/// Statistics for a channel over the last week
+pub struct ChannelStats {
+    pub grabbed: usize,
+    pub new: usize,
+    pub other: usize,
+}
+
 /// Channel which contains a bunch of videos
 #[derive(Debug)]
 pub struct Channel {
@@ -257,6 +265,61 @@ pub struct Channel {
 }
 
 impl Channel {
+    pub fn stats_all(&self, db: &Database) -> Result<ChannelStats> {
+        let mut stmt = db.conn.prepare(
+            "SELECT COUNT(*) AS count, status FROM video
+            WHERE channel=?1
+            GROUP BY status",
+        )?;
+        let chaniter = stmt.query_map(params![self.id], |row| {
+            Ok((row.get("count")?, row.get("status")?))
+        })?;
+        let mut grabbed = 0;
+        let mut new = 0;
+        let mut other = 0;
+        for r in chaniter {
+            let (count, status): (i64, VideoStatus) = r?;
+            match status {
+                VideoStatus::Grabbed => grabbed = count as usize,
+                VideoStatus::New => new = count as usize,
+                _ => other += count as usize,
+            }
+        }
+
+        Ok(ChannelStats {
+            grabbed,
+            new,
+            other,
+        })
+    }
+    pub fn stats_1w(&self, db: &Database) -> Result<ChannelStats> {
+        let mut stmt = db.conn.prepare(
+            "SELECT COUNT(*) AS count, status FROM video
+            WHERE channel=?1 AND published_at > datetime('now', '-7 days')
+            GROUP BY status",
+        )?;
+        let chaniter = stmt.query_map(params![self.id], |row| {
+            Ok((row.get("count")?, row.get("status")?))
+        })?;
+        let mut grabbed = 0;
+        let mut new = 0;
+        let mut other = 0;
+        for r in chaniter {
+            let (count, status): (i64, VideoStatus) = r?;
+            match status {
+                VideoStatus::Grabbed => grabbed = count as usize,
+                VideoStatus::New => new = count as usize,
+                _ => other += count as usize,
+            }
+        }
+
+        Ok(ChannelStats {
+            grabbed,
+            new,
+            other,
+        })
+    }
+
     pub fn get_by_sqlid(db: &Database, id: i64) -> Result<Channel> {
         let chan = db
             .conn

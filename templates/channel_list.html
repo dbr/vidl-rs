@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {%block body%}
 <table class="pure-table pure-table-horizontal pure-table-striped"
-    style="width: 300px; margin-left: auto; margin-right: auto; background: white;">
+    style="width: 800px; margin-left: auto; margin-right: auto; background: white;">
     <tr>
         <td>
             <a href="/channel/_all">
@@ -10,7 +10,13 @@
                 </div>
             </a>
         </td>
-    </tr>
+        <td>
+            Last week
+          </td>
+          <td>
+            All time
+          </td>
+        </tr>
     {% for c in chans.channels %}
     <tr>
         <td>
@@ -21,7 +27,69 @@
                 </div>
             </a>
         </td>
+        <td>
+            <a href="/channel/{{c.id}}?status=GR" class="pure-button ytdl-grabbed">{{c.stats_1w.grabbed }}</a>
+            <a href="/channel/{{c.id}}?status=NE" class="pure-button ytdl-new">{{c.stats_1w.new }}</a>
+            <a href="/channel/{{c.id}}?status=IG" class="pure-button ytdl-ignore">{{c.stats_1w.other }}</a>
+        </td>
+        <td>
+            <a href="/channel/{{c.id}}?status=GR" class="pure-button ytdl-grabbed">{{c.stats_all.grabbed }}</a>
+            <a href="/channel/{{c.id}}?status=NE" class="pure-button ytdl-new">{{c.stats_all.new }}</a>
+            <a href="/channel/{{c.id}}?status=IG,GE,QU" class="pure-button ytdl-ignore">{{c.stats_all.other }}</a>
+        </td>
     </tr>
     {% endfor %}
 </table>
+
+
+
+<style>
+    a {
+        color: black;
+        text-decoration: none;
+    }
+
+    .ytdl-nextprev {
+        background: rgb(179, 215, 255);
+    }
+
+    .ytdl-videoinfo {
+        font-size: 1.5em;
+    }
+
+    .button-info {
+        background: rgb(182, 212, 247);
+    }
+
+    .button-warning {
+        background: rgb(223, 117, 20);
+    }
+
+    .ytdl-grabbed {
+        background: rgb(123, 223, 110);
+    }
+
+    .ytdl-graberror {
+        background: rgb(238, 82, 61);
+    }
+
+    .ytdl-new {
+        background: rgb(110, 159, 223);
+    }
+
+    .ytdl-downloading,
+    .ytdl-queued {
+        background: rgb(207, 146, 66);
+    }
+
+    .ytdl-ignored {
+        background: rgb(129, 129, 129);
+    }
+
+    #content {
+        width: 800px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+</style>
 {%endblock%}

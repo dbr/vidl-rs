@@ -10,7 +10,7 @@ use log::info;
 use rouille::{router, Request, Response};
 use serde_derive::Serialize;
 
-use crate::common::VideoStatus;
+use crate::common::{ChannelID, VideoStatus};
 use crate::config::Config;
 use crate::db::{Channel, DBVideoInfo, FilterParams};
 use crate::worker::WorkerPool;
@@ -69,23 +69,54 @@ lazy_static! {
 }
 
 #[derive(Debug, Serialize)]
+pub struct WebChannelStats {
+    grabbed: usize,
+    new: usize,
+    other: usize,
+}
+
+#[derive(Debug, Serialize)]
 pub struct WebChannel {
     id: i64,
     chanid: String,
     service: String,
     title: String,
     icon: String,
+    stats_1w: WebChannelStats,
+    stats_all: WebChannelStats,
 }
 
-impl From<Channel> for WebChannel {
-    fn from(src: Channel) -> WebChannel {
-        WebChannel {
+impl WebChannel {
+    fn new(src: Channel, db: &crate::db::Database) -> Result<WebChannel> {
+        let stats_1w = src.stats_1w(db)?.into();
+        let stats_all = src.stats_all(db)?.into();
+        Ok(WebChannel {
             id: src.id,
             chanid: src.chanid,
             service: src.service.as_str().into(),
             title: src.title,
             icon: src.thumbnail,
+            stats_1w,
+            stats_all,
+        })
+    }
+}
+
+impl From<crate::db::ChannelStats> for WebChannelStats {
+    fn from(src: crate::db::ChannelStats) -> WebChannelStats {
+        WebChannelStats {
+            grabbed: src.grabbed,
+            new: src.new,
+            other: src.other,
         }
+    }
+}
+
+impl WebChannel {
+    pub fn stats(&self, db: &crate::db::Database) -> Result<WebChannelStats> {
+        let chan = crate::db::Channel::get_by_sqlid(db, self.id)?;
+        let stats = chan.stats_1w(db)?;
+        Ok(stats.into())
     }
 }
 
@@ -94,10 +125,14 @@ pub struct WebChannelList {
     channels: Vec<WebChannel>,
 }
 
-impl From<Vec<Channel>> for WebChannelList {
-    fn from(src: Vec<Channel>) -> WebChannelList {
-        let channels: Vec<WebChannel> = src.into_iter().map(|p| p.into()).collect();
-        WebChannelList { channels }
+impl WebChannelList {
+    fn new(src: Vec<Channel>, db: &crate::db::Database) -> Result<WebChannelList> {
+        let mut channels: Vec<WebChannel> = vec![];
+        for p in src {
+            let c = WebChannel::new(p, db)?;
+            channels.push(c);
+        }
+        Ok(WebChannelList { channels })
     }
 }
 
@@ -185,7 +220,7 @@ fn page_chan_list() -> Result<Response> {
     let cfg = crate::config::Config::load();
     let db = crate::db::Database::open(&cfg)?;
     let chans = crate::db::list_channels(&db)?;
-    let ret: WebChannelList = chans.into();
+    let ret = WebChannelList::new(chans, &db)?;
 
     let t = ChannelListTemplate { chans: &ret };
 
@@ -220,11 +255,11 @@ fn page_list_videos(
     // Construct a map of WebChannel's to be referenced by each video
     let mut chans: HashMap<i64, WebChannel> = HashMap::new();
     if let Some(c) = c {
-        chans.insert(c.id, c.into());
+        chans.insert(c.id, WebChannel::new(c, &db)?);
     } else {
         for v in &videos {
             let c = v.channel(&db)?;
-            chans.insert(c.id, c.into());
+            chans.insert(c.id, WebChannel::new(c, &db)?);
         }
     }
 
@@ -294,6 +329,19 @@ fn page_download_video(videoid: i64, workers: Arc<Mutex<WorkerPool>>) -> Result<
         let w = workers.lock().unwrap();
         w.enqueue(crate::worker::WorkItem::Download(v));
     }
+
+    // Redirect to channel for no-javascript clicking
+    Ok(Response::redirect_303(format!("/channel/{}", chanid)))
+}
+
+fn page_ignore_video(videoid: i64, workers: Arc<Mutex<WorkerPool>>) -> Result<Response> {
+    let cfg = crate::config::Config::load();
+    let db = crate::db::Database::open(&cfg)?;
+    let v = crate::db::DBVideoInfo::get_by_sqlid(&db, videoid)?;
+    let chanid = v.chanid;
+
+    // Mark video as queued
+    v.set_status(&db, VideoStatus::Ignore)?;
 
     // Redirect to channel for no-javascript clicking
     Ok(Response::redirect_303(format!("/channel/{}", chanid)))
@@ -422,6 +470,9 @@ fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Respon
         },
         (POST) ["/download/{videoid}", videoid: i64] => {
             page_download_video(videoid, workers.clone())
+        },
+        (POST) ["/ignore/{videoid}", videoid: i64] => {
+            page_ignore_video(videoid, workers.clone())
         },
 
         (POST) ["/video_title/{videoid}", videoid: i64] => {
