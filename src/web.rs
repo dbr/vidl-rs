@@ -10,7 +10,7 @@ use log::info;
 use rouille::{router, Request, Response};
 use serde_derive::Serialize;
 
-use crate::common::{ChannelID, VideoStatus};
+use crate::common::VideoStatus;
 use crate::config::Config;
 use crate::db::{Channel, DBVideoInfo, FilterParams};
 use crate::worker::WorkerPool;
@@ -109,14 +109,6 @@ impl From<crate::db::ChannelStats> for WebChannelStats {
             new: src.new,
             other: src.other,
         }
-    }
-}
-
-impl WebChannel {
-    pub fn stats(&self, db: &crate::db::Database) -> Result<WebChannelStats> {
-        let chan = crate::db::Channel::get_by_sqlid(db, self.id)?;
-        let stats = chan.stats_1w(db)?;
-        Ok(stats.into())
     }
 }
 
@@ -334,7 +326,7 @@ fn page_download_video(videoid: i64, workers: Arc<Mutex<WorkerPool>>) -> Result<
     Ok(Response::redirect_303(format!("/channel/{}", chanid)))
 }
 
-fn page_ignore_video(videoid: i64, workers: Arc<Mutex<WorkerPool>>) -> Result<Response> {
+fn page_ignore_video(videoid: i64) -> Result<Response> {
     let cfg = crate::config::Config::load();
     let db = crate::db::Database::open(&cfg)?;
     let v = crate::db::DBVideoInfo::get_by_sqlid(&db, videoid)?;
@@ -472,7 +464,7 @@ fn handle_response(request: &Request, workers: Arc<Mutex<WorkerPool>>) -> Respon
             page_download_video(videoid, workers.clone())
         },
         (POST) ["/ignore/{videoid}", videoid: i64] => {
-            page_ignore_video(videoid, workers.clone())
+            page_ignore_video(videoid)
         },
 
         (POST) ["/video_title/{videoid}", videoid: i64] => {
