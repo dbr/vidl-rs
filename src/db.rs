@@ -530,8 +530,9 @@ impl Channel {
         match self.service {
             Service::Youtube => {
                 if !self.chanid.starts_with("UC") {
-                    let yt = crate::source::invidious::workaround::Yt::new();
-                    if let Ok(fixed_id) = yt.find_channel_id(&self.chanid) {
+                    if let Ok(fixed_id) =
+                        crate::source::invidious::find_channel_id_workaround(&self.chanid)
+                    {
                         log::info!(
                             "Updating chanid {} username/channel-name to Youtube ID {}",
                             self.chanid,
