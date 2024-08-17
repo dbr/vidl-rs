@@ -1,0 +1,22 @@
+name: Build
+run-name: ${{ gitea.actor }} is building
+on: [push]
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: List files in the repository
+        run: |
+          ls ${{ gitea.workspace }}
+      - name: docker debug
+        run: |
+          docker version
+      - name: docker build
+        run: |
+          docker build -t ${{ vars.DOCKER_TAG_NAME }} .
+      - name: docker publish
+        run: |
+          docker push ${{ vars.DOCKER_TAG_NAME }}
