@@ -19,4 +19,5 @@ jobs:
           docker build -t ${{ vars.DOCKER_TAG_NAME }} .
       - name: docker publish
         run: |
+          echo "${{ secrets.CONTAINER_PUBLISH_KEY }}" | docker login ${{ vars.DOCKER_SERVER }} --username ${{ vars.DOCKER_USERNAME }} --password-stdin
           docker push ${{ vars.DOCKER_TAG_NAME }}
