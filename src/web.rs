@@ -368,7 +368,7 @@ fn page_thumbnail(
             url
         } else {
             let prefix_hackery: String = std::env::var("VIDL_INVIDIOUS_URL").unwrap();
-            format!("{prefix_hackery}/{url}")
+            format!("{prefix_hackery}{url}")
         }
     };
 
