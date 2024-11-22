@@ -363,9 +363,18 @@ fn page_thumbnail(
         }
     };
 
+    let full_url = {
+        if url.starts_with("http://") || url.starts_with("https://") {
+            url
+        } else {
+            let prefix_hackery: String = std::env::var("VIDL_INVIDIOUS_URL").unwrap();
+            format!("{prefix_hackery}/{url}")
+        }
+    };
+
     let image = {
         let mut ic = IMG_CACHE.lock().unwrap();
-        ic.get(url, workers)?
+        ic.get(full_url, workers)?
     };
     match image {
         ImageCacheResponse::Redirect(url) => Ok(Response::redirect_303(url)),
