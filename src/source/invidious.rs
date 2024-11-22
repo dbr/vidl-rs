@@ -168,7 +168,7 @@ impl<'a> crate::source::base::ChannelData for YoutubeQuery<'a> {
             };
 
             let url = format!(
-                "{prefix}/api/v1/channels/videos/{chanid}{continuation}",
+                "{prefix}/api/v1/channels/{chanid}{continuation}",
                 prefix = api_prefix(),
                 chanid = chanid,
                 continuation = ct_arg,
@@ -363,14 +363,14 @@ mod test {
     fn test_video_list() -> Result<()> {
         let mock_p1 = mockito::mock(
             "GET",
-            "/api/v1/channels/videos/UCOYYX1Ucvx87A7CSy5M99yw?page=1",
+            "/api/v1/channels/UCOYYX1Ucvx87A7CSy5M99yw?page=1",
         )
         .with_body_from_file("testdata/channel_climb_page1.json")
         .create();
 
         let mock_p2 = mockito::mock(
             "GET",
-            "/api/v1/channels/videos/UCOYYX1Ucvx87A7CSy5M99yw?page=2",
+            "/api/v1/channels/UCOYYX1Ucvx87A7CSy5M99yw?page=2",
         )
         .with_body_from_file("testdata/channel_climb_page2.json")
         .create();
@@ -408,7 +408,7 @@ mod test {
     fn test_video_list_error() -> Result<()> {
         let mock_p1 = mockito::mock(
             "GET",
-            "/api/v1/channels/videos/UCOYYX1Ucvx87A7CSy5M99yw?page=1",
+            "/api/v1/channels/UCOYYX1Ucvx87A7CSy5M99yw?page=1",
         )
         .with_body("garbagenonsense")
         .create();
