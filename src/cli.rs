@@ -81,23 +81,32 @@ pub(crate) enum CmdBackupOpts {
 pub(crate) enum Commands {
     /// Add channel
     Add(CmdAdd),
+
     /// Backup database as simple .json file
     #[clap(subcommand)]
     Backup(CmdBackupOpts),
+
     /// enqueues videos for download
     Download,
+
     /// Initialise the database
     Init,
+
     /// list channels/videos
     List(CmdList),
+
     /// update database schema to be current
     Migrate,
+
     /// remove given channel and all videos in it
     Remove(CmdRemove),
+
     /// Updates all added channel info
     Update(CmdUpdate),
+
     /// serve web interface
     Web,
+
     /// downloads queued videos
     Worker,
 }
