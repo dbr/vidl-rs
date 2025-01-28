@@ -406,12 +406,9 @@ mod test {
 
     #[test]
     fn test_video_list_error() -> Result<()> {
-        let mock_p1 = mockito::mock(
-            "GET",
-            "/api/v1/channels/UCOYYX1Ucvx87A7CSy5M99yw?page=1",
-        )
-        .with_body("garbagenonsense")
-        .create();
+        let mock_p1 = mockito::mock("GET", "/api/v1/channels/UCOYYX1Ucvx87A7CSy5M99yw?page=1")
+            .with_body("garbagenonsense")
+            .create();
 
         let cid = crate::common::YoutubeID {
             id: "UCOYYX1Ucvx87A7CSy5M99yw".into(),
