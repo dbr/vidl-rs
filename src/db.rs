@@ -624,7 +624,7 @@ impl Channel {
 pub fn list_channels(db: &Database) -> Result<Vec<Channel>> {
     let mut stmt = db
         .conn
-        .prepare("SELECT id, chanid, service, title, thumbnail FROM channel ORDER BY title")?;
+        .prepare("SELECT id, chanid, service, title, thumbnail FROM channel ORDER BY LOWER(title)")?;
     let chaniter = stmt.query_map(params![], |row| {
         Ok(Channel {
             id: row.get("id")?,
